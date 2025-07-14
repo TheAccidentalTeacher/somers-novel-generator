@@ -28,29 +28,10 @@ function App() {
     timeout: 30000
   });
 
-  // Check backend health on mount
+  // Remove backend health check - not needed
   useEffect(() => {
-    checkBackendHealth();
+    // App initialized
   }, []);
-
-  const checkBackendHealth = async () => {
-    try {
-      setIsLoading(true);
-      const response = await fetch(`${apiConfig.baseUrl.replace('/api', '')}/health`);
-      const data = await response.json();
-      
-      if (data.status === 'ok') {
-        addNotification('Connected to backend successfully', 'success');
-      } else {
-        addNotification('Backend health check failed', 'warning');
-      }
-    } catch (error) {
-      console.error('Backend health check failed:', error);
-      addNotification('Could not connect to backend. Check if the server is running.', 'error');
-    } finally {
-      setIsLoading(false);
-    }
-  };
 
   const addNotification = (message, type = 'info', duration = 5000) => {
     const id = Date.now() + Math.random();
