@@ -97,8 +97,8 @@ function App() {
     {
       id: TABS.CONFLICT,
       label: 'Story Bible Builder',
-      icon: '�',
-      description: 'Advanced conflict and character design'
+      icon: '📖',
+      description: 'Optional advanced conflict and character design tool'
     },
     {
       id: TABS.SETTINGS,
@@ -200,14 +200,12 @@ function App() {
             {tabConfig.map(tab => (
               <button
                 key={tab.id}
-                className={`tab-button ${activeTab === tab.id ? 'active' : ''} ${tab.disabled ? 'disabled' : ''}`}
-                onClick={() => !tab.disabled && setActiveTab(tab.id)}
-                disabled={tab.disabled}
-                title={tab.disabled ? 'Complete conflict design first' : tab.description}
+                className={`tab-button ${activeTab === tab.id ? 'active' : ''}`}
+                onClick={() => setActiveTab(tab.id)}
+                title={tab.description}
               >
                 <span className="tab-icon">{tab.icon}</span>
                 <span className="tab-label">{tab.label}</span>
-                {tab.disabled && <span className="disabled-indicator">🔒</span>}
               </button>
             ))}
           </div>
@@ -223,8 +221,8 @@ function App() {
           <div className="footer-content">
             <p>&copy; 2024 Somers Novel Generator. Built with ❤️ for Christian fiction writers.</p>
             <div className="status-indicators">
-              <span className={`status-indicator ${conflictData ? 'ready' : 'waiting'}`}>
-                {conflictData ? '✅ Conflict Ready' : '⏳ Design Conflict'}
+              <span className={`status-indicator ${conflictData ? 'ready' : 'optional'}`}>
+                {conflictData ? '✅ Story Bible Active' : '📖 Story Bible Available'}
               </span>
             </div>
           </div>
