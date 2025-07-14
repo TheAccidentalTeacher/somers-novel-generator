@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import LoadingSpinner from './LoadingSpinner';
+import './AutoGenerate.css';
 
 const AutoGenerate = ({ conflictData, apiConfig, onSuccess, onError, onNotification }) => {
   const [isGenerating, setIsGenerating] = useState(false);
@@ -14,10 +15,20 @@ const AutoGenerate = ({ conflictData, apiConfig, onSuccess, onError, onNotificat
   const [storySetup, setStorySetup] = useState({
     title: '',
     genre: '',
-    chapters: 20,
-    wordCount: 75000,
+    subgenre: '',
+    fictionLength: '',
+    wordCount: 0,
+    targetChapterLength: 2000,
+    chapterVariance: 500,
     synopsis: ''
   });
+  
+  const [selectedGenreCategory, setSelectedGenreCategory] = useState(null);
+  const [selectedLengthCategory, setSelectedLengthCategory] = useState(null);
+  const [calculatedChapters, setCalculatedChapters] = useState(0);
+  const [generationPhase, setGenerationPhase] = useState('setup'); // 'setup', 'planning', 'outline', 'generating'
+  const [outline, setOutline] = useState([]);
+  const [currentProcess, setCurrentProcess] = useState('');
   
   const [generationMode, setGenerationMode] = useState('batch'); // 'batch' or 'stream'
   
@@ -32,6 +43,308 @@ const AutoGenerate = ({ conflictData, apiConfig, onSuccess, onError, onNotificat
     generateExtras: true
   });
 
+  // Comprehensive genre mapping system for LLM instructions
+  const genreCategories = {
+    mystery: {
+      name: 'Mystery',
+      icon: '🔍',
+      description: 'Suspenseful stories focused on solving crimes or puzzles',
+      subgenres: {
+        cozy: {
+          name: 'Cozy Mystery',
+          instructions: 'Write a gentle mystery with minimal violence, amateur detective, small-town setting, focus on character relationships and clever deduction. Avoid graphic content, emphasize charm and wit.'
+        },
+        hardboiled: {
+          name: 'Hard-boiled Detective',
+          instructions: 'Create a gritty, noir-style mystery with a cynical detective, urban setting, moral ambiguity, and realistic violence. Focus on atmosphere and psychological depth.'
+        },
+        police: {
+          name: 'Police Procedural',
+          instructions: 'Develop a realistic law enforcement investigation with proper procedures, team dynamics, forensic details, and authentic police work. Emphasize accuracy and process.'
+        },
+        psychological: {
+          name: 'Psychological Thriller',
+          instructions: 'Craft a mind-bending mystery focusing on mental states, unreliable narrators, psychological manipulation, and internal conflicts. Emphasize tension and character psychology.'
+        },
+        historical: {
+          name: 'Historical Mystery',
+          instructions: 'Set mystery in specific historical period with accurate details, period-appropriate language, historical figures/events, and era-specific investigative methods.'
+        },
+        paranormal: {
+          name: 'Paranormal Mystery',
+          instructions: 'Blend mystery with supernatural elements, magical investigators, otherworldly clues, and paranormal abilities. Balance mystery logic with fantasy elements.'
+        },
+        amateur: {
+          name: 'Amateur Detective',
+          instructions: 'Feature non-professional investigator stumbling into mystery, using unique skills/knowledge, personal stakes, and unconventional methods to solve crimes.'
+        },
+        locked_room: {
+          name: 'Locked Room Mystery',
+          instructions: 'Create impossible crime scenario with clever logical solution, focus on deductive reasoning, detailed crime scene analysis, and satisfying revelation.'
+        }
+      }
+    },
+    christian: {
+      name: 'Christian Fiction',
+      icon: '✝️',
+      description: 'Faith-based stories with Christian themes and values',
+      subgenres: {
+        contemporary: {
+          name: 'Contemporary Christian',
+          instructions: 'Write modern-day story with realistic Christian characters facing current issues, emphasizing faith journey, prayer, biblical principles, and redemptive themes.'
+        },
+        romance: {
+          name: 'Christian Romance',
+          instructions: 'Develop clean romance with Christian values, courtship rather than casual dating, prayer and faith in relationship decisions, marriage as goal, no explicit content.'
+        },
+        historical: {
+          name: 'Christian Historical',
+          instructions: 'Set in historical period with accurate Christian context, period-appropriate faith practices, historical religious movements, and biblically-grounded themes.'
+        },
+        fantasy: {
+          name: 'Christian Fantasy',
+          instructions: 'Create fantasy world with clear Christian allegory, good vs evil themes, redemption arcs, sacrificial love, and biblical parallels in fantastical setting.'
+        },
+        suspense: {
+          name: 'Christian Suspense',
+          instructions: 'Combine thriller elements with Christian themes, faith under pressure, spiritual warfare concepts, prayer as tool, good ultimately triumphing over evil.'
+        },
+        womens: {
+          name: "Christian Women's Fiction",
+          instructions: 'Focus on female protagonist navigating life challenges through faith, relationships, family dynamics, personal growth, and spiritual maturity themes.'
+        },
+        young_adult: {
+          name: 'Christian Young Adult',
+          instructions: 'Write for teen/young adult audience with age-appropriate faith themes, coming-of-age spiritual journey, peer pressure, identity in Christ concepts.'
+        },
+        inspirational: {
+          name: 'Inspirational Fiction',
+          instructions: 'Create uplifting story with Christian undertones, hope-filled themes, overcoming adversity through faith, subtle rather than preachy messaging.'
+        }
+      }
+    },
+    romance: {
+      name: 'Romance',
+      icon: '💕',
+      description: 'Love stories with romantic relationships as central plot',
+      subgenres: {
+        contemporary: {
+          name: 'Contemporary Romance',
+          instructions: 'Modern-day romance with realistic characters, current settings, relatable conflicts, emotional development, and satisfying romantic resolution.'
+        },
+        historical: {
+          name: 'Historical Romance',
+          instructions: 'Period romance with accurate historical details, era-appropriate social constraints, historical events as backdrop, period language and customs.'
+        },
+        paranormal: {
+          name: 'Paranormal Romance',
+          instructions: 'Romance with supernatural elements, vampires/werewolves/magic, otherworldly conflicts, paranormal abilities affecting relationship dynamics.'
+        },
+        fantasy: {
+          name: 'Fantasy Romance',
+          instructions: 'Romance in fantasy setting with magic systems, fantastical creatures, world-building, adventure elements, and romantic plot as central focus.'
+        },
+        suspense: {
+          name: 'Romantic Suspense',
+          instructions: 'Combine romance with thriller elements, danger bringing characters together, mystery to solve, action sequences, and romantic tension throughout.'
+        },
+        regency: {
+          name: 'Regency Romance',
+          instructions: 'Set in Regency England (1811-1820) with period accuracy, social rules/etiquette, ballrooms and estates, witty dialogue, marriage as goal.'
+        },
+        western: {
+          name: 'Western Romance',
+          instructions: 'Romance in American Old West setting, frontier life, cowboys/ranchers, harsh landscapes, survival elements, traditional gender roles.'
+        },
+        military: {
+          name: 'Military Romance',
+          instructions: 'Romance involving military personnel, deployment challenges, honor and duty themes, military lifestyle, long-distance relationship elements.'
+        }
+      }
+    },
+    fantasy: {
+      name: 'Fantasy',
+      icon: '🐉',
+      description: 'Stories with magical or supernatural elements',
+      subgenres: {
+        epic: {
+          name: 'Epic Fantasy',
+          instructions: 'Grand-scale fantasy with detailed world-building, magic systems, multiple POV characters, quest narratives, and battles between good and evil.'
+        },
+        urban: {
+          name: 'Urban Fantasy',
+          instructions: 'Fantasy set in modern urban environment, hidden magical world, supernatural creatures in cities, contemporary setting with fantasy elements.'
+        },
+        dark: {
+          name: 'Dark Fantasy',
+          instructions: 'Fantasy with horror elements, morally ambiguous characters, bleak atmospheres, gothic themes, and darker magical consequences.'
+        },
+        high: {
+          name: 'High Fantasy',
+          instructions: 'Fantasy in completely fictional world, detailed magic systems, non-human races, medieval-inspired settings, heroes quest narratives.'
+        },
+        low: {
+          name: 'Low Fantasy',
+          instructions: 'Fantasy with minimal magic in realistic world, subtle supernatural elements, magic as rare/dangerous, focus on character over magic.'
+        },
+        portal: {
+          name: 'Portal Fantasy',
+          instructions: 'Characters transported from real world to fantasy realm, fish-out-of-water elements, learning new world rules, journey home themes.'
+        },
+        sword_sorcery: {
+          name: 'Sword & Sorcery',
+          instructions: 'Action-focused fantasy with warrior protagonists, magic and combat, adventure over politics, personal stakes over world-saving.'
+        },
+        fairy_tale: {
+          name: 'Fairy Tale Retelling',
+          instructions: 'Reimagined classic fairy tales with modern twists, familiar story elements, updated themes, and fresh perspectives on old stories.'
+        }
+      }
+    },
+    scifi: {
+      name: 'Science Fiction',
+      icon: '🚀',
+      description: 'Stories based on scientific concepts and future technology',
+      subgenres: {
+        space_opera: {
+          name: 'Space Opera',
+          instructions: 'Grand-scale sci-fi with space travel, alien civilizations, galactic empires, advanced technology, and epic conflicts across star systems.'
+        },
+        cyberpunk: {
+          name: 'Cyberpunk',
+          instructions: 'Near-future dystopia with advanced technology, virtual reality, corporate control, hackers, and technology vs humanity themes.'
+        },
+        dystopian: {
+          name: 'Dystopian',
+          instructions: 'Oppressive future society with government control, rebellion themes, loss of freedoms, survival elements, and hope vs despair.'
+        },
+        time_travel: {
+          name: 'Time Travel',
+          instructions: 'Stories involving temporal mechanics, cause-and-effect paradoxes, historical changes, timeline complications, and temporal consequences.'
+        },
+        post_apocalyptic: {
+          name: 'Post-Apocalyptic',
+          instructions: 'Survival in world after catastrophic event, rebuilding civilization, resource scarcity, human nature under pressure, hope themes.'
+        },
+        hard_scifi: {
+          name: 'Hard Science Fiction',
+          instructions: 'Scientifically accurate sci-fi with realistic technology, physics-based scenarios, detailed scientific explanations, and plausible futures.'
+        },
+        soft_scifi: {
+          name: 'Soft Science Fiction',
+          instructions: 'Character-focused sci-fi with loose scientific accuracy, emphasis on social sciences, human relationships, and philosophical themes.'
+        },
+        alternate_history: {
+          name: 'Alternate History',
+          instructions: 'Historical events with different outcomes, exploring how changes affect society, culture, technology, and individual lives.'
+        }
+      }
+    },
+    thriller: {
+      name: 'Thriller',
+      icon: '⚡',
+      description: 'Fast-paced stories designed to create suspense and excitement',
+      subgenres: {
+        action: {
+          name: 'Action Thriller',
+          instructions: 'High-octane thriller with constant motion, chase sequences, physical conflicts, heroic protagonists, and non-stop pacing.'
+        },
+        psychological: {
+          name: 'Psychological Thriller',
+          instructions: 'Mind-focused thriller with unreliable narrators, mental manipulation, psychological warfare, and internal character conflicts.'
+        },
+        political: {
+          name: 'Political Thriller',
+          instructions: 'Thriller involving government conspiracies, political intrigue, corruption, espionage, and power struggles at high levels.'
+        },
+        medical: {
+          name: 'Medical Thriller',
+          instructions: 'Thriller set in medical context with diseases, medical conspiracies, hospital settings, life-or-death medical scenarios.'
+        },
+        legal: {
+          name: 'Legal Thriller',
+          instructions: 'Courtroom drama with legal procedures, lawyer protagonists, justice themes, legal conspiracies, and dramatic court scenes.'
+        },
+        techno: {
+          name: 'Techno Thriller',
+          instructions: 'Technology-focused thriller with cyber threats, scientific dangers, tech conspiracies, and cutting-edge technology as plot driver.'
+        },
+        espionage: {
+          name: 'Espionage Thriller',
+          instructions: 'Spy-focused thriller with international intrigue, double agents, secret missions, intelligence agencies, and covert operations.'
+        },
+        supernatural: {
+          name: 'Supernatural Thriller',
+          instructions: 'Thriller with paranormal elements, supernatural threats, occult themes, and otherworldly antagonists creating suspense.'
+        }
+      }
+    }
+  };
+
+  // Fiction length categories with detailed specifications
+  const fictionLengths = {
+    flash: {
+      name: 'Flash Fiction',
+      icon: '⚡',
+      range: '1,000-2,000 words',
+      description: 'Ultra-short stories with single scene or moment',
+      minWords: 1000,
+      maxWords: 2000,
+      suggestedChapterLength: 500,
+      chapters: 2-4
+    },
+    short: {
+      name: 'Short Story',
+      icon: '📝',
+      range: '2,000-7,000 words',
+      description: 'Complete story with limited characters and single plot',
+      minWords: 2000,
+      maxWords: 7000,
+      suggestedChapterLength: 1000,
+      chapters: 2-7
+    },
+    novelette: {
+      name: 'Novelette',
+      icon: '📄',
+      range: '7,001-17,500 words',
+      description: 'Extended short story with more complex plot',
+      minWords: 7001,
+      maxWords: 17500,
+      suggestedChapterLength: 1500,
+      chapters: 5-12
+    },
+    novella: {
+      name: 'Novella',
+      icon: '📋',
+      range: '17,501-50,000 words',
+      description: 'Short novel with focused narrative and fewer subplots',
+      minWords: 17501,
+      maxWords: 50000,
+      suggestedChapterLength: 2000,
+      chapters: 9-25
+    },
+    novel: {
+      name: 'Novel',
+      icon: '📚',
+      range: '50,001-110,000 words',
+      description: 'Full-length novel with complex plot and character development',
+      minWords: 50001,
+      maxWords: 110000,
+      suggestedChapterLength: 2500,
+      chapters: 20-44
+    },
+    epic: {
+      name: 'Epic Novel',
+      icon: '📖',
+      range: '110,001+ words',
+      description: 'Large-scale novel with multiple plots and extensive world-building',
+      minWords: 110001,
+      maxWords: 200000,
+      suggestedChapterLength: 3000,
+      chapters: 37-67
+    }
+  };
+
   // Cleanup on unmount
   useEffect(() => {
     return () => {
@@ -44,29 +357,49 @@ const AutoGenerate = ({ conflictData, apiConfig, onSuccess, onError, onNotificat
     };
   }, []);
 
+  // Calculate chapters when word count or target length changes
+  useEffect(() => {
+    if (storySetup.wordCount && storySetup.targetChapterLength) {
+      const calculated = Math.round(storySetup.wordCount / storySetup.targetChapterLength);
+      setCalculatedChapters(calculated);
+    }
+  }, [storySetup.wordCount, storySetup.targetChapterLength]);
+
   const addLog = (message, type = 'info') => {
     const timestamp = new Date().toLocaleTimeString();
     setLogs(prev => [...prev, { timestamp, message, type }]);
   };
 
   const startGeneration = async () => {
+    // If we're in setup phase, start planning
+    if (generationPhase === 'setup') {
+      setGenerationPhase('planning');
+      await createOutline();
+      return;
+    }
+
     // Use either conflictData or storySetup
     const storyData = conflictData || {
       title: storySetup.title,
-      genre: storySetup.genre,
-      chapters: storySetup.chapters,
-      targetWordCount: storySetup.wordCount,
+      genre: `${storySetup.genre}_${storySetup.subgenre}`,
+      genreInstructions: genreCategories[storySetup.genre]?.subgenres[storySetup.subgenre]?.instructions || '',
+      fictionLength: storySetup.fictionLength,
+      chapters: calculatedChapters,
+      wordCount: storySetup.wordCount,
+      targetChapterLength: storySetup.targetChapterLength,
+      chapterVariance: storySetup.chapterVariance,
       synopsis: storySetup.synopsis,
+      outline: outline,
       // Add minimal structure for API compatibility
-      themes: { primary: 'Christian values and faith journey' },
+      themes: { primary: 'Character growth and compelling narrative' },
       characters: {
         protagonist: { name: 'Main Character', role: 'protagonist' }
       }
     };
 
     // Validate required fields
-    if (!storyData.title || !storyData.genre || !storyData.chapters) {
-      onError(new Error('Please fill in title, genre, and number of chapters'));
+    if (!storyData.title || !storyData.synopsis || !outline.length) {
+      onError(new Error('Please complete the planning phase first'));
       return;
     }
 
@@ -76,23 +409,25 @@ const AutoGenerate = ({ conflictData, apiConfig, onSuccess, onError, onNotificat
       setResult(null);
       setProgress(0);
       setLogs([]);
+      setGenerationPhase('generating');
       
       abortControllerRef.current = new AbortController();
 
-      addLog('Starting auto-generation process...', 'info');
-      onNotification('Starting automated novel generation...', 'info');
+      addLog('Starting advanced novel generation...', 'info');
+      onNotification('Starting intelligent novel generation...', 'info');
 
       const requestData = {
-        conflictStructure: storyData,
+        storyData: storyData,
         preferences,
         generationMode, // 'batch' or 'stream'
+        useAdvancedIteration: true, // Enable the sophisticated AI process
         timestamp: new Date().toISOString()
       };
 
       // Choose endpoint based on generation mode
       const endpoint = generationMode === 'stream' 
-        ? `${apiConfig.baseUrl}/streamGeneration`
-        : `${apiConfig.baseUrl}/autoGenerateNovel`;
+        ? `${apiConfig.baseUrl}/advancedStreamGeneration`
+        : `${apiConfig.baseUrl}/advancedGeneration`;
 
       const response = await fetch(endpoint, {
         method: 'POST',
@@ -117,19 +452,20 @@ const AutoGenerate = ({ conflictData, apiConfig, onSuccess, onError, onNotificat
       if (generationMode === 'stream') {
         // Handle streaming mode
         setJobId(data.streamId);
-        addLog(`Streaming generation started with ID: ${data.streamId}`, 'success');
-        startStreaming(data.streamId);
+        addLog(`Advanced streaming generation started with ID: ${data.streamId}`, 'success');
+        startAdvancedStreaming(data.streamId);
       } else {
         // Handle batch mode
         setJobId(data.jobId);
-        addLog(`Generation job started with ID: ${data.jobId}`, 'success');
-        startPolling(data.jobId);
+        addLog(`Advanced generation job started with ID: ${data.jobId}`, 'success');
+        startAdvancedPolling(data.jobId);
       }
 
     } catch (error) {
       console.error('Generation start error:', error);
       setError(error);
       setIsGenerating(false);
+      setGenerationPhase('outline');
       
       if (error.name === 'AbortError') {
         addLog('Generation was cancelled', 'warning');
@@ -138,6 +474,57 @@ const AutoGenerate = ({ conflictData, apiConfig, onSuccess, onError, onNotificat
         addLog(`Error starting generation: ${error.message}`, 'error');
         onError(error);
       }
+    }
+  };
+
+  const createOutline = async () => {
+    try {
+      setCurrentProcess('Analyzing your synopsis with GPT-4...');
+      
+      const outlineData = {
+        title: storySetup.title,
+        genre: storySetup.genre,
+        subgenre: storySetup.subgenre,
+        genreInstructions: genreCategories[storySetup.genre]?.subgenres[storySetup.subgenre]?.instructions || '',
+        wordCount: storySetup.wordCount,
+        chapters: calculatedChapters,
+        targetChapterLength: storySetup.targetChapterLength,
+        synopsis: storySetup.synopsis,
+        fictionLength: storySetup.fictionLength
+      };
+
+      setCurrentProcess('Creating detailed story structure...');
+
+      const response = await fetch(`${apiConfig.baseUrl}/createOutline`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(outlineData)
+      });
+
+      if (!response.ok) {
+        throw new Error(`Failed to create outline: ${response.statusText}`);
+      }
+
+      const data = await response.json();
+      
+      if (!data.success) {
+        throw new Error(data.error || 'Failed to create outline');
+      }
+
+      setOutline(data.outline);
+      setCurrentProcess('');
+      setGenerationPhase('outline');
+      addLog('Story outline created successfully', 'success');
+      onNotification('Outline ready for review!', 'success');
+
+    } catch (error) {
+      console.error('Outline creation error:', error);
+      setError(error);
+      setCurrentProcess('');
+      setGenerationPhase('setup');
+      onError(error);
     }
   };
 
@@ -233,6 +620,97 @@ const AutoGenerate = ({ conflictData, apiConfig, onSuccess, onError, onNotificat
     }
   };
 
+  const startAdvancedStreaming = (streamId) => {
+    // Start Server-Sent Events stream for advanced generation
+    const streamUrl = `${apiConfig.baseUrl}/advancedStreamGeneration/${streamId}`;
+    const eventSource = new EventSource(streamUrl);
+
+    eventSource.onopen = () => {
+      addLog('Advanced streaming connected', 'success');
+      onNotification('Intelligent generation started', 'success');
+    };
+
+    eventSource.onmessage = (event) => {
+      try {
+        const eventData = JSON.parse(event.data);
+        handleAdvancedStreamEvent(eventData);
+      } catch (error) {
+        console.error('Error parsing advanced stream data:', error);
+      }
+    };
+
+    eventSource.onerror = (error) => {
+      console.error('Advanced stream error:', error);
+      setError(new Error('Advanced stream connection error'));
+      setIsGenerating(false);
+      eventSource.close();
+    };
+
+    // Store reference for cleanup
+    abortControllerRef.current = { abort: () => eventSource.close() };
+  };
+
+  const handleAdvancedStreamEvent = (eventData) => {
+    switch (eventData.type) {
+      case 'process_update':
+        setCurrentProcess(eventData.message);
+        addLog(eventData.message, 'info');
+        break;
+        
+      case 'chapter_planning':
+        setCurrentProcess(`Planning Chapter ${eventData.chapter}: ${eventData.title}`);
+        addLog(`Planning Chapter ${eventData.chapter}: ${eventData.title}`, 'info');
+        break;
+        
+      case 'chapter_writing':
+        setCurrentProcess(`Writing Chapter ${eventData.chapter}: ${eventData.title}`);
+        addLog(`Writing Chapter ${eventData.chapter}...`, 'info');
+        break;
+        
+      case 'chapter_complete':
+        const newProgress = (eventData.chapter / calculatedChapters) * 100;
+        setProgress(newProgress);
+        setStatus(prev => ({ 
+          ...prev, 
+          chaptersCompleted: eventData.chapter,
+          currentChapter: eventData.chapter + 1 
+        }));
+        addLog(`Chapter ${eventData.chapter} completed (${eventData.wordCount} words)`, 'success');
+        setCurrentProcess(`Chapter ${eventData.chapter} complete. Moving to next chapter...`);
+        break;
+        
+      case 'complete':
+        setIsGenerating(false);
+        setProgress(100);
+        setCurrentProcess('Generation complete!');
+        
+        const result = {
+          title: eventData.title,
+          chapters: eventData.chapters,
+          totalChapters: eventData.totalChapters,
+          wordCount: eventData.totalWords,
+          completedAt: new Date().toISOString()
+        };
+        
+        setResult(result);
+        onSuccess(result);
+        addLog('Advanced novel generation completed!', 'success');
+        onNotification('Your novel is ready!', 'success');
+        break;
+        
+      case 'error':
+        setError(new Error(eventData.error));
+        setIsGenerating(false);
+        setCurrentProcess('');
+        addLog(`Generation error: ${eventData.error}`, 'error');
+        onError(new Error(eventData.error));
+        break;
+        
+      default:
+        console.log('Unknown advanced stream event:', eventData);
+    }
+  };
+
   const startPolling = (id) => {
     intervalRef.current = setInterval(async () => {
       try {
@@ -285,6 +763,61 @@ const AutoGenerate = ({ conflictData, apiConfig, onSuccess, onError, onNotificat
         }
       }
     }, 2000); // Poll every 2 seconds
+  };
+
+  const startAdvancedPolling = (jobId) => {
+    intervalRef.current = setInterval(async () => {
+      try {
+        const response = await fetch(`${apiConfig.baseUrl}/advancedGeneration/${jobId}`);
+        
+        if (!response.ok) {
+          throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+        }
+
+        const data = await response.json();
+        
+        if (!data.success) {
+          throw new Error(data.error || 'Failed to get job status');
+        }
+
+        const jobStatus = data.job;
+        setStatus(jobStatus);
+        setProgress(jobStatus.progress || 0);
+        
+        if (jobStatus.currentProcess) {
+          setCurrentProcess(jobStatus.currentProcess);
+        }
+
+        // Update logs with new entries
+        if (jobStatus.logs && jobStatus.logs.length > logs.length) {
+          const newLogs = jobStatus.logs.slice(logs.length);
+          newLogs.forEach(log => addLog(log.message, log.type));
+        }
+
+        // Handle job completion
+        if (jobStatus.status === 'completed') {
+          clearInterval(intervalRef.current);
+          setIsGenerating(false);
+          setCurrentProcess('');
+          setResult(jobStatus.result);
+          addLog('Advanced novel generation completed!', 'success');
+          onSuccess(jobStatus.result);
+          onNotification('Your novel is ready!', 'success');
+        } else if (jobStatus.status === 'failed') {
+          clearInterval(intervalRef.current);
+          setIsGenerating(false);
+          setCurrentProcess('');
+          const errorMsg = jobStatus.error || 'Generation failed';
+          setError(new Error(errorMsg));
+          addLog(`Generation failed: ${errorMsg}`, 'error');
+          onError(new Error(errorMsg));
+        }
+
+      } catch (error) {
+        console.error('Advanced polling error:', error);
+        addLog(`Polling error: ${error.message}`, 'error');
+      }
+    }, 3000); // Poll every 3 seconds for advanced generation
   };
 
   const cancelGeneration = async () => {
@@ -448,112 +981,271 @@ const AutoGenerate = ({ conflictData, apiConfig, onSuccess, onError, onNotificat
 
       {!conflictData ? (
         <div className="story-setup">
-          <h3>📖 Create Your Story</h3>
-          <p>Enter your story details below to start generating your novel.</p>
-          
-          <div className="setup-form">
-            <div className="form-group">
-              <label className="form-label">Novel Title</label>
-              <input
-                type="text"
-                className="form-input"
-                placeholder="Enter your novel title..."
-                value={storySetup.title || ''}
-                onChange={(e) => setStorySetup(prev => ({ ...prev, title: e.target.value }))}
-              />
-            </div>
-
-            <div className="form-row">
-              <div className="form-group">
-                <label className="form-label">Genre</label>
-                <select
-                  className="form-select"
-                  value={storySetup.genre || ''}
-                  onChange={(e) => setStorySetup(prev => ({ ...prev, genre: e.target.value }))}
-                >
-                  <option value="">Select Genre</option>
-                  <option value="Christian Fiction">Christian Fiction</option>
-                  <option value="Christian Romance">Christian Romance</option>
-                  <option value="Christian Historical">Christian Historical</option>
-                  <option value="Christian Contemporary">Christian Contemporary</option>
-                  <option value="Christian Fantasy">Christian Fantasy</option>
-                  <option value="Christian Mystery">Christian Mystery</option>
-                </select>
-              </div>
-
-              <div className="form-group">
-                <label className="form-label">Number of Chapters</label>
-                <input
-                  type="number"
-                  className="form-input"
-                  min="5"
-                  max="50"
-                  value={storySetup.chapters || 20}
-                  onChange={(e) => setStorySetup(prev => ({ ...prev, chapters: parseInt(e.target.value) }))}
-                />
-              </div>
-            </div>
-
-            <div className="form-group">
-              <label className="form-label">Target Word Count</label>
-              <select
-                className="form-select"
-                value={storySetup.wordCount || ''}
-                onChange={(e) => setStorySetup(prev => ({ ...prev, wordCount: parseInt(e.target.value) }))}
-              >
-                <option value="">Select Word Count</option>
-                <option value="50000">50,000 words (Novella)</option>
-                <option value="75000">75,000 words (Standard)</option>
-                <option value="100000">100,000 words (Full Novel)</option>
-                <option value="125000">125,000 words (Long Novel)</option>
-              </select>
-            </div>
-
-            <div className="form-group">
-              <label className="form-label">Story Synopsis (Optional)</label>
-              <textarea
-                className="form-textarea"
-                rows="4"
-                placeholder="Briefly describe your story idea, main characters, or themes..."
-                value={storySetup.synopsis || ''}
-                onChange={(e) => setStorySetup(prev => ({ ...prev, synopsis: e.target.value }))}
-              />
-            </div>
-
-            <div className="generation-options">
-              <h4>📡 Generation Options</h4>
-              <div className="form-checkboxes">
-                <label className="form-checkbox">
-                  <input
-                    type="checkbox"
-                    checked={generationMode === 'stream'}
-                    onChange={(e) => setGenerationMode(e.target.checked ? 'stream' : 'batch')}
-                  />
-                  Enable Live Streaming (watch your novel being written in real-time)
-                </label>
-              </div>
-            </div>
-
-            <div className="generation-actions">
-              <button 
-                className="btn btn-primary btn-large"
-                onClick={startGeneration}
-                disabled={!storySetup.title || !storySetup.genre}
-              >
-                🚀 Generate My Novel
-              </button>
+          {generationPhase === 'setup' && (
+            <>
+              <h3>📖 Create Your Story</h3>
+              <p>Design your novel step-by-step with our intelligent generation system.</p>
               
-              <div className="generation-info">
-                <h4>How It Works:</h4>
-                <ul>
-                  <li>AI creates a complete story structure based on your inputs</li>
-                  <li>Generates chapters sequentially with consistent characters and plot</li>
-                  <li>Choose streaming to watch live generation or batch for faster completion</li>
-                  <li>Download individual chapters or the complete novel when finished</li>
-                </ul>
+              {/* Genre Selection */}
+              <div className="setup-section">
+                <h4>🎭 Choose Your Genre</h4>
+                <div className="genre-cards">
+                  {Object.entries(genreCategories).map(([key, category]) => (
+                    <div
+                      key={key}
+                      className={`genre-card ${selectedGenreCategory === key ? 'selected' : ''}`}
+                      onClick={() => setSelectedGenreCategory(selectedGenreCategory === key ? null : key)}
+                    >
+                      <span className="genre-icon">{category.icon}</span>
+                      <h5>{category.name}</h5>
+                      <p>{category.description}</p>
+                    </div>
+                  ))}
+                </div>
+
+                {selectedGenreCategory && (
+                  <div className="subgenre-selection">
+                    <h5>Choose {genreCategories[selectedGenreCategory].name} Subgenre:</h5>
+                    <div className="subgenre-cards">
+                      {Object.entries(genreCategories[selectedGenreCategory].subgenres).map(([key, subgenre]) => (
+                        <div
+                          key={key}
+                          className={`subgenre-card ${storySetup.subgenre === key ? 'selected' : ''}`}
+                          onClick={() => setStorySetup(prev => ({ 
+                            ...prev, 
+                            genre: selectedGenreCategory,
+                            subgenre: key 
+                          }))}
+                        >
+                          <h6>{subgenre.name}</h6>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* Fiction Length Selection */}
+              {storySetup.subgenre && (
+                <div className="setup-section">
+                  <h4>📏 Choose Fiction Length</h4>
+                  <div className="length-cards">
+                    {Object.entries(fictionLengths).map(([key, length]) => (
+                      <div
+                        key={key}
+                        className={`length-card ${selectedLengthCategory === key ? 'selected' : ''}`}
+                        onClick={() => {
+                          setSelectedLengthCategory(key);
+                          setStorySetup(prev => ({ 
+                            ...prev, 
+                            fictionLength: key,
+                            wordCount: length.minWords + Math.round((length.maxWords - length.minWords) / 2),
+                            targetChapterLength: length.suggestedChapterLength
+                          }));
+                        }}
+                      >
+                        <span className="length-icon">{length.icon}</span>
+                        <h5>{length.name}</h5>
+                        <p className="length-range">{length.range}</p>
+                        <p className="length-desc">{length.description}</p>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Word Count Fine-tuning */}
+              {selectedLengthCategory && (
+                <div className="setup-section">
+                  <h4>🎯 Fine-tune Your Story</h4>
+                  
+                  <div className="form-row">
+                    <div className="form-group">
+                      <label className="form-label">Target Word Count</label>
+                      <input
+                        type="number"
+                        className="form-input"
+                        min={fictionLengths[selectedLengthCategory].minWords}
+                        max={fictionLengths[selectedLengthCategory].maxWords}
+                        value={storySetup.wordCount}
+                        onChange={(e) => setStorySetup(prev => ({ ...prev, wordCount: parseInt(e.target.value) }))}
+                      />
+                      <small>Range: {fictionLengths[selectedLengthCategory].range}</small>
+                    </div>
+
+                    <div className="form-group">
+                      <label className="form-label">Target Words Per Chapter</label>
+                      <input
+                        type="number"
+                        className="form-input"
+                        min="500"
+                        max="5000"
+                        step="100"
+                        value={storySetup.targetChapterLength}
+                        onChange={(e) => setStorySetup(prev => ({ ...prev, targetChapterLength: parseInt(e.target.value) }))}
+                      />
+                    </div>
+
+                    <div className="form-group">
+                      <label className="form-label">Chapter Length Variance (±)</label>
+                      <input
+                        type="number"
+                        className="form-input"
+                        min="100"
+                        max="1000"
+                        step="50"
+                        value={storySetup.chapterVariance}
+                        onChange={(e) => setStorySetup(prev => ({ ...prev, chapterVariance: parseInt(e.target.value) }))}
+                      />
+                      <small>Chapters can be ±{storySetup.chapterVariance} words from target</small>
+                    </div>
+                  </div>
+
+                  <div className="chapter-preview">
+                    <h5>📊 Story Structure Preview</h5>
+                    <div className="preview-stats">
+                      <div className="stat">
+                        <strong>Estimated Chapters:</strong> {calculatedChapters}
+                      </div>
+                      <div className="stat">
+                        <strong>Average Chapter Length:</strong> {Math.round(storySetup.wordCount / calculatedChapters)} words
+                      </div>
+                      <div className="stat">
+                        <strong>Chapter Range:</strong> {storySetup.targetChapterLength - storySetup.chapterVariance} - {storySetup.targetChapterLength + storySetup.chapterVariance} words
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* Synopsis Input */}
+              {calculatedChapters > 0 && (
+                <div className="setup-section">
+                  <h4>📝 Story Synopsis</h4>
+                  <p>Provide a detailed synopsis (up to 10,000 words) - the more detail, the better your novel!</p>
+                  
+                  <div className="form-group">
+                    <textarea
+                      className="form-textarea synopsis-input"
+                      rows="12"
+                      maxLength="10000"
+                      placeholder="Write your detailed story synopsis here. Include main characters, plot points, themes, setting, conflicts, and how you want the story to develop. The AI will use this as the foundation for your entire novel..."
+                      value={storySetup.synopsis}
+                      onChange={(e) => setStorySetup(prev => ({ ...prev, synopsis: e.target.value }))}
+                    />
+                    <div className="character-count">
+                      {storySetup.synopsis.length.toLocaleString()} / 10,000 characters
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* Title Input - Last Step */}
+              {storySetup.synopsis.length > 100 && (
+                <div className="setup-section">
+                  <h4>📚 Novel Title</h4>
+                  <p>Finally, give your masterpiece a title (you can always change this later):</p>
+                  
+                  <div className="form-group">
+                    <input
+                      type="text"
+                      className="form-input title-input"
+                      placeholder="Enter your novel title..."
+                      value={storySetup.title}
+                      onChange={(e) => setStorySetup(prev => ({ ...prev, title: e.target.value }))}
+                    />
+                  </div>
+
+                  <div className="generation-options">
+                    <h5>� Generation Options</h5>
+                    <div className="form-checkboxes">
+                      <label className="form-checkbox">
+                        <input
+                          type="checkbox"
+                          checked={generationMode === 'stream'}
+                          onChange={(e) => setGenerationMode(e.target.checked ? 'stream' : 'batch')}
+                        />
+                        Enable Live Streaming (watch the AI plan and write your novel in real-time)
+                      </label>
+                    </div>
+                  </div>
+
+                  <div className="proceed-actions">
+                    <button 
+                      className="btn btn-primary btn-large"
+                      onClick={() => setGenerationPhase('planning')}
+                      disabled={!storySetup.title || storySetup.synopsis.length < 100}
+                    >
+                      🧠 Start Planning Phase
+                    </button>
+                    
+                    <div className="planning-info">
+                      <h6>What happens next:</h6>
+                      <ul>
+                        <li>AI analyzes your synopsis and creates a detailed outline</li>
+                        <li>You can review and adjust the outline before generation</li>
+                        <li>AI writes each chapter using advanced iterative process</li>
+                        <li>Each chapter builds on previous chapters for consistency</li>
+                      </ul>
+                    </div>
+                  </div>
+                </div>
+              )}
+            </>
+          )}
+
+          {generationPhase === 'planning' && (
+            <div className="planning-phase">
+              <h3>🧠 Planning Your Novel</h3>
+              <div className="current-process">
+                {currentProcess && (
+                  <div className="process-indicator">
+                    <div className="spinner"></div>
+                    <span>{currentProcess}</span>
+                  </div>
+                )}
               </div>
             </div>
-          </div>
+          )}
+
+          {generationPhase === 'outline' && outline.length > 0 && (
+            <div className="outline-phase">
+              <h3>📋 Review & Edit Your Story Outline</h3>
+              <p>The AI has created a detailed outline. Review and edit as needed before generation begins.</p>
+              
+              <div className="outline-editor">
+                {outline.map((chapter, index) => (
+                  <div key={index} className="outline-chapter">
+                    <h5>Chapter {index + 1}: {chapter.title}</h5>
+                    <textarea
+                      value={chapter.summary}
+                      onChange={(e) => {
+                        const newOutline = [...outline];
+                        newOutline[index].summary = e.target.value;
+                        setOutline(newOutline);
+                      }}
+                      rows="3"
+                    />
+                  </div>
+                ))}
+              </div>
+
+              <div className="outline-actions">
+                <button 
+                  className="btn btn-primary btn-large"
+                  onClick={startGeneration}
+                >
+                  🚀 Begin Novel Generation
+                </button>
+                <button 
+                  className="btn btn-outline"
+                  onClick={() => setGenerationPhase('planning')}
+                >
+                  ← Back to Planning
+                </button>
+              </div>
+            </div>
+          )}
         </div>
       ) : (
         <>
@@ -675,7 +1367,7 @@ const AutoGenerate = ({ conflictData, apiConfig, onSuccess, onError, onNotificat
           {isGenerating && (
             <div className="generation-progress">
               <div className="progress-header">
-                <h3>🤖 Auto-Generating Your Novel</h3>
+                <h3>🤖 Intelligently Generating Your Novel</h3>
                 <button 
                   className="btn btn-error"
                   onClick={cancelGeneration}
@@ -683,6 +1375,15 @@ const AutoGenerate = ({ conflictData, apiConfig, onSuccess, onError, onNotificat
                   ❌ Cancel Generation
                 </button>
               </div>
+
+              {currentProcess && (
+                <div className="current-process">
+                  <div className="process-indicator">
+                    <div className="spinner"></div>
+                    <span className="process-text">{currentProcess}</span>
+                  </div>
+                </div>
+              )}
 
               <div className="progress-bar-container">
                 <div className="progress-bar">
@@ -694,7 +1395,7 @@ const AutoGenerate = ({ conflictData, apiConfig, onSuccess, onError, onNotificat
                 <div className="progress-text">
                   {progress.toFixed(1)}% Complete
                   {status?.currentChapter && (
-                    <span> - Generating Chapter {status.currentChapter}</span>
+                    <span> - Chapter {status.currentChapter} of {calculatedChapters || (conflictData?.chapters || storySetup.chapters)}</span>
                   )}
                 </div>
               </div>
@@ -703,10 +1404,10 @@ const AutoGenerate = ({ conflictData, apiConfig, onSuccess, onError, onNotificat
                 <div className="status-info">
                   <div className="status-grid">
                     <div className="status-item">
-                      <strong>Status:</strong> {status.status}
+                      <strong>Phase:</strong> {generationPhase === 'generating' ? 'Writing' : 'Planning'}
                     </div>
                     <div className="status-item">
-                      <strong>Chapters Done:</strong> {status.chaptersCompleted || 0} / {(conflictData?.chapters || storySetup.chapters)}
+                      <strong>Chapters Done:</strong> {status.chaptersCompleted || 0} / {calculatedChapters || (conflictData?.chapters || storySetup.chapters)}
                     </div>
                     <div className="status-item">
                       <strong>Elapsed Time:</strong> {status.elapsedTime || '0:00'}
