@@ -19,7 +19,7 @@ const TABS = {
 };
 
 function App() {
-  const [activeTab, setActiveTab] = useState(TABS.CONFLICT);
+  const [activeTab, setActiveTab] = useState(TABS.AUTO);
   const [conflictData, setConflictData] = useState(null);
   const [isLoading, setIsLoading] = useState(false);
   const [notifications, setNotifications] = useState([]);
@@ -62,8 +62,8 @@ function App() {
 
   const handleConflictComplete = (data) => {
     setConflictData(data);
-    addNotification('Conflict structure created successfully! Ready to generate your novel.', 'success');
-    setActiveTab(TABS.QUICK); // Auto-switch to generation tab
+    addNotification('Conflict structure created successfully!', 'success');
+    // Don't auto-switch tabs - let user choose
   };
 
   const handleGenerationSuccess = (result) => {
@@ -77,31 +77,28 @@ function App() {
 
   const tabConfig = [
     {
-      id: TABS.CONFLICT,
-      label: 'Conflict Designer',
-      icon: '⚔️',
-      description: 'Design your novel\'s central conflict structure'
+      id: TABS.AUTO,
+      label: 'Auto Generate',
+      icon: '🤖',
+      description: 'Complete automated novel generation with built-in story design'
     },
     {
       id: TABS.QUICK,
       label: 'Quick Generate',
       icon: '⚡',
-      description: 'Generate a complete novel structure quickly',
-      disabled: !conflictData
-    },
-    {
-      id: TABS.AUTO,
-      label: 'Auto Generate',
-      icon: '🤖',
-      description: 'Full automated chapter-by-chapter generation',
-      disabled: !conflictData
+      description: 'Generate a complete novel structure quickly'
     },
     {
       id: TABS.STREAM,
       label: 'Stream Generate',
       icon: '📡',
-      description: 'Real-time streaming novel generation',
-      disabled: !conflictData
+      description: 'Real-time streaming novel generation'
+    },
+    {
+      id: TABS.CONFLICT,
+      label: 'Story Bible Builder',
+      icon: '�',
+      description: 'Advanced conflict and character design'
     },
     {
       id: TABS.SETTINGS,
