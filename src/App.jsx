@@ -28,7 +28,17 @@ function App() {
     timeout: 30000
   });
 
-  // Remove backend health check - not needed
+  // Backend health check function
+  const checkBackendHealth = async () => {
+    try {
+      const response = await fetch(`${apiConfig.baseUrl.replace('/api', '')}/health`);
+      return response.ok;
+    } catch (error) {
+      console.error('Backend health check failed:', error);
+      return false;
+    }
+  };
+
   useEffect(() => {
     // App initialized
   }, []);
