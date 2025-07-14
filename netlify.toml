@@ -1,0 +1,45 @@
+# Netlify Configuration for Somers Novel Generator
+
+[build]
+  # Build settings
+  publish = "dist"
+  command = "npm run build"
+  
+  # Environment variables
+  environment = { NODE_VERSION = "18" }
+
+# Note: Set VITE_API_BASE_URL in Netlify dashboard to your Railway backend URL
+# Example: VITE_API_BASE_URL = "https://your-railway-backend.railway.app/api"
+
+# Redirect rules for SPA
+[[redirects]]
+  from = "/*"
+  to = "/index.html"
+  status = 200
+
+# Headers for security
+[[headers]]
+  for = "/*"
+  [headers.values]
+    X-Frame-Options = "DENY"
+    X-XSS-Protection = "1; mode=block"
+    X-Content-Type-Options = "nosniff"
+    Referrer-Policy = "strict-origin-when-cross-origin"
+    
+# Headers for static assets
+[[headers]]
+  for = "/static/*"
+  [headers.values]
+    Cache-Control = "public, max-age=31536000, immutable"
+
+# Functions configuration for potential Netlify fallback
+[functions]
+  directory = "netlify/functions"
+  node_bundler = "nft"
+
+# Development settings
+[dev]
+  command = "npm run dev"
+  port = 5173
+  targetPort = 3001
+  autoLaunch = false
