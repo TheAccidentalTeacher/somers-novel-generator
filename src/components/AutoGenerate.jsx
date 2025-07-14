@@ -10,6 +10,17 @@ const AutoGenerate = ({ conflictData, apiConfig, onSuccess, onError, onNotificat
   const [error, setError] = useState(null);
   const [logs, setLogs] = useState([]);
   
+  // Story setup state for when no conflictData is provided
+  const [storySetup, setStorySetup] = useState({
+    title: '',
+    genre: '',
+    chapters: 20,
+    wordCount: 75000,
+    synopsis: ''
+  });
+  
+  const [generationMode, setGenerationMode] = useState('batch'); // 'batch' or 'stream'
+  
   const intervalRef = useRef(null);
   const abortControllerRef = useRef(null);
 
@@ -39,8 +50,23 @@ const AutoGenerate = ({ conflictData, apiConfig, onSuccess, onError, onNotificat
   };
 
   const startGeneration = async () => {
-    if (!conflictData) {
-      onError(new Error('Please complete conflict design first'));
+    // Use either conflictData or storySetup
+    const storyData = conflictData || {
+      title: storySetup.title,
+      genre: storySetup.genre,
+      chapters: storySetup.chapters,
+      targetWordCount: storySetup.wordCount,
+      synopsis: storySetup.synopsis,
+      // Add minimal structure for API compatibility
+      themes: { primary: 'Christian values and faith journey' },
+      characters: {
+        protagonist: { name: 'Main Character', role: 'protagonist' }
+      }
+    };
+
+    // Validate required fields
+    if (!storyData.title || !storyData.genre || !storyData.chapters) {
+      onError(new Error('Please fill in title, genre, and number of chapters'));
       return;
     }
 
@@ -57,12 +83,18 @@ const AutoGenerate = ({ conflictData, apiConfig, onSuccess, onError, onNotificat
       onNotification('Starting automated novel generation...', 'info');
 
       const requestData = {
-        conflictStructure: conflictData,
+        conflictStructure: storyData,
         preferences,
+        generationMode, // 'batch' or 'stream'
         timestamp: new Date().toISOString()
       };
 
-      const response = await fetch(`${apiConfig.baseUrl}/autoGenerateNovel`, {
+      // Choose endpoint based on generation mode
+      const endpoint = generationMode === 'stream' 
+        ? `${apiConfig.baseUrl}/streamGeneration`
+        : `${apiConfig.baseUrl}/autoGenerateNovel`;
+
+      const response = await fetch(endpoint, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -82,11 +114,17 @@ const AutoGenerate = ({ conflictData, apiConfig, onSuccess, onError, onNotificat
         throw new Error(data.error || 'Failed to start generation');
       }
 
-      setJobId(data.jobId);
-      addLog(`Generation job started with ID: ${data.jobId}`, 'success');
-      
-      // Start polling for updates
-      startPolling(data.jobId);
+      if (generationMode === 'stream') {
+        // Handle streaming mode
+        setJobId(data.streamId);
+        addLog(`Streaming generation started with ID: ${data.streamId}`, 'success');
+        startStreaming(data.streamId);
+      } else {
+        // Handle batch mode
+        setJobId(data.jobId);
+        addLog(`Generation job started with ID: ${data.jobId}`, 'success');
+        startPolling(data.jobId);
+      }
 
     } catch (error) {
       console.error('Generation start error:', error);
@@ -100,6 +138,98 @@ const AutoGenerate = ({ conflictData, apiConfig, onSuccess, onError, onNotificat
         addLog(`Error starting generation: ${error.message}`, 'error');
         onError(error);
       }
+    }
+  };
+
+  const startStreaming = (streamId) => {
+    // Start Server-Sent Events stream
+    const streamUrl = `${apiConfig.baseUrl}/streamGeneration/${streamId}`;
+    const eventSource = new EventSource(streamUrl);
+
+    eventSource.onopen = () => {
+      addLog('Stream connected, generation started', 'success');
+      onNotification('Live streaming started', 'success');
+    };
+
+    eventSource.onmessage = (event) => {
+      try {
+        const eventData = JSON.parse(event.data);
+        handleStreamEvent(eventData);
+      } catch (error) {
+        console.error('Error parsing stream data:', error);
+      }
+    };
+
+    eventSource.onerror = (error) => {
+      console.error('Stream error:', error);
+      setError(new Error('Stream connection error'));
+      setIsGenerating(false);
+      eventSource.close();
+    };
+
+    // Store reference for cleanup
+    abortControllerRef.current = { abort: () => eventSource.close() };
+  };
+
+  const handleStreamEvent = (eventData) => {
+    switch (eventData.type) {
+      case 'status':
+        setStatus(prev => ({ ...prev, status: eventData.status }));
+        break;
+        
+      case 'chapter_start':
+        setStatus(prev => ({ ...prev, currentChapter: eventData.chapter }));
+        addLog(`Starting Chapter ${eventData.chapter}`, 'info');
+        break;
+        
+      case 'content':
+        // For streaming, we could show live content but for simplicity, just log progress
+        break;
+        
+      case 'chapter_complete':
+        const newProgress = (eventData.chapter / (conflictData?.chapters || storySetup.chapters)) * 100;
+        setProgress(newProgress);
+        setStatus(prev => ({ 
+          ...prev, 
+          chaptersCompleted: eventData.chapter,
+          currentChapter: eventData.chapter + 1 
+        }));
+        addLog(`Chapter ${eventData.chapter} completed (${eventData.wordCount} words)`, 'success');
+        break;
+        
+      case 'complete':
+        setIsGenerating(false);
+        setProgress(100);
+        
+        const result = {
+          title: eventData.title,
+          chapters: eventData.chapters,
+          totalChapters: eventData.totalChapters,
+          wordCount: eventData.totalWords,
+          completedAt: new Date().toISOString()
+        };
+        
+        setResult(result);
+        onSuccess(result);
+        addLog('Streaming generation completed!', 'success');
+        onNotification('Novel generation completed!', 'success');
+        break;
+        
+      case 'error':
+        setError(new Error(eventData.error));
+        setIsGenerating(false);
+        addLog(`Generation error: ${eventData.error}`, 'error');
+        onError(new Error(eventData.error));
+        break;
+        
+      case 'progress':
+        if (eventData.progress) {
+          setProgress(eventData.progress);
+        }
+        break;
+        
+      default:
+        console.log('Unknown stream event:', eventData);
     }
   };
 
@@ -317,10 +447,113 @@ const AutoGenerate = ({ conflictData, apiConfig, onSuccess, onError, onNotificat
       </div>
 
       {!conflictData ? (
-        <div className="missing-conflict">
-          <h3>🔒 Conflict Design Required</h3>
-          <p>Please complete the conflict design first before using auto-generation.</p>
-          <p>Go to the <strong>Conflict Designer</strong> tab to get started.</p>
+        <div className="story-setup">
+          <h3>📖 Create Your Story</h3>
+          <p>Enter your story details below to start generating your novel.</p>
+          
+          <div className="setup-form">
+            <div className="form-group">
+              <label className="form-label">Novel Title</label>
+              <input
+                type="text"
+                className="form-input"
+                placeholder="Enter your novel title..."
+                value={storySetup.title || ''}
+                onChange={(e) => setStorySetup(prev => ({ ...prev, title: e.target.value }))}
+              />
+            </div>
+
+            <div className="form-row">
+              <div className="form-group">
+                <label className="form-label">Genre</label>
+                <select
+                  className="form-select"
+                  value={storySetup.genre || ''}
+                  onChange={(e) => setStorySetup(prev => ({ ...prev, genre: e.target.value }))}
+                >
+                  <option value="">Select Genre</option>
+                  <option value="Christian Fiction">Christian Fiction</option>
+                  <option value="Christian Romance">Christian Romance</option>
+                  <option value="Christian Historical">Christian Historical</option>
+                  <option value="Christian Contemporary">Christian Contemporary</option>
+                  <option value="Christian Fantasy">Christian Fantasy</option>
+                  <option value="Christian Mystery">Christian Mystery</option>
+                </select>
+              </div>
+
+              <div className="form-group">
+                <label className="form-label">Number of Chapters</label>
+                <input
+                  type="number"
+                  className="form-input"
+                  min="5"
+                  max="50"
+                  value={storySetup.chapters || 20}
+                  onChange={(e) => setStorySetup(prev => ({ ...prev, chapters: parseInt(e.target.value) }))}
+                />
+              </div>
+            </div>
+
+            <div className="form-group">
+              <label className="form-label">Target Word Count</label>
+              <select
+                className="form-select"
+                value={storySetup.wordCount || ''}
+                onChange={(e) => setStorySetup(prev => ({ ...prev, wordCount: parseInt(e.target.value) }))}
+              >
+                <option value="">Select Word Count</option>
+                <option value="50000">50,000 words (Novella)</option>
+                <option value="75000">75,000 words (Standard)</option>
+                <option value="100000">100,000 words (Full Novel)</option>
+                <option value="125000">125,000 words (Long Novel)</option>
+              </select>
+            </div>
+
+            <div className="form-group">
+              <label className="form-label">Story Synopsis (Optional)</label>
+              <textarea
+                className="form-textarea"
+                rows="4"
+                placeholder="Briefly describe your story idea, main characters, or themes..."
+                value={storySetup.synopsis || ''}
+                onChange={(e) => setStorySetup(prev => ({ ...prev, synopsis: e.target.value }))}
+              />
+            </div>
+
+            <div className="generation-options">
+              <h4>📡 Generation Options</h4>
+              <div className="form-checkboxes">
+                <label className="form-checkbox">
+                  <input
+                    type="checkbox"
+                    checked={generationMode === 'stream'}
+                    onChange={(e) => setGenerationMode(e.target.checked ? 'stream' : 'batch')}
+                  />
+                  Enable Live Streaming (watch your novel being written in real-time)
+                </label>
+              </div>
+            </div>
+
+            <div className="generation-actions">
+              <button 
+                className="btn btn-primary btn-large"
+                onClick={startGeneration}
+                disabled={!storySetup.title || !storySetup.genre}
+              >
+                🚀 Generate My Novel
+              </button>
+              
+              <div className="generation-info">
+                <h4>How It Works:</h4>
+                <ul>
+                  <li>AI creates a complete story structure based on your inputs</li>
+                  <li>Generates chapters sequentially with consistent characters and plot</li>
+                  <li>Choose streaming to watch live generation or batch for faster completion</li>
+                  <li>Download individual chapters or the complete novel when finished</li>
+                </ul>
+              </div>
+            </div>
+          </div>
         </div>
       ) : (
         <>
@@ -345,7 +578,21 @@ const AutoGenerate = ({ conflictData, apiConfig, onSuccess, onError, onNotificat
               </div>
 
               <div className="generation-preferences">
-                <h3>⚙️ Auto-Generation Settings</h3>
+                <h3>⚙️ Generation Settings</h3>
+                
+                <div className="form-group">
+                  <label className="form-label">Generation Mode</label>
+                  <div className="form-checkboxes">
+                    <label className="form-checkbox">
+                      <input
+                        type="checkbox"
+                        checked={generationMode === 'stream'}
+                        onChange={(e) => setGenerationMode(e.target.checked ? 'stream' : 'batch')}
+                      />
+                      Enable Live Streaming (watch your novel being written in real-time)
+                    </label>
+                  </div>
+                </div>
                 
                 <div className="form-group">
                   <label className="form-label">Chapter Length</label>
@@ -459,7 +706,7 @@ const AutoGenerate = ({ conflictData, apiConfig, onSuccess, onError, onNotificat
                       <strong>Status:</strong> {status.status}
                     </div>
                     <div className="status-item">
-                      <strong>Chapters Done:</strong> {status.chaptersCompleted || 0} / {conflictData.chapters}
+                      <strong>Chapters Done:</strong> {status.chaptersCompleted || 0} / {(conflictData?.chapters || storySetup.chapters)}
                     </div>
                     <div className="status-item">
                       <strong>Elapsed Time:</strong> {status.elapsedTime || '0:00'}

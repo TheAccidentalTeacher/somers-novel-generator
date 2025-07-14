@@ -3,7 +3,6 @@ import { ErrorBoundary } from 'react-error-boundary';
 import ConflictDesigner from './components/ConflictDesigner';
 import QuickGenerate from './components/QuickGenerate';
 import AutoGenerate from './components/AutoGenerate';
-import StreamGenerate from './components/StreamGenerate';
 import ProjectSettings from './components/ProjectSettings';
 import ErrorFallback from './components/ErrorFallback';
 import LoadingSpinner from './components/LoadingSpinner';
@@ -14,7 +13,6 @@ const TABS = {
   CONFLICT: 'conflict',
   QUICK: 'quick',
   AUTO: 'auto',
-  STREAM: 'stream',
   SETTINGS: 'settings'
 };
 
@@ -80,19 +78,13 @@ function App() {
       id: TABS.AUTO,
       label: 'Auto Generate',
       icon: '🤖',
-      description: 'Complete automated novel generation with built-in story design'
+      description: 'Complete automated novel generation with built-in story design and optional live streaming'
     },
     {
       id: TABS.QUICK,
       label: 'Quick Generate',
       icon: '⚡',
       description: 'Generate a complete novel structure quickly'
-    },
-    {
-      id: TABS.STREAM,
-      label: 'Stream Generate',
-      icon: '📡',
-      description: 'Real-time streaming novel generation'
     },
     {
       id: TABS.CONFLICT,
@@ -133,17 +125,6 @@ function App() {
       case TABS.AUTO:
         return (
           <AutoGenerate
-            conflictData={conflictData}
-            apiConfig={apiConfig}
-            onSuccess={handleGenerationSuccess}
-            onError={handleGenerationError}
-            onNotification={addNotification}
-          />
-        );
-      
-      case TABS.STREAM:
-        return (
-          <StreamGenerate
             conflictData={conflictData}
             apiConfig={apiConfig}
             onSuccess={handleGenerationSuccess}
