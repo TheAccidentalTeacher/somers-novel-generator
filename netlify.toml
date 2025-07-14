@@ -3,7 +3,7 @@
 [build]
   # Build settings
   publish = "dist"
-  command = "npm run build"
+  command = "npm install && npm run build"
   
   # Environment variables
   environment = { NODE_VERSION = "18" }
