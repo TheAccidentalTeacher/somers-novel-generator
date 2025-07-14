@@ -1,0 +1,31 @@
+# This file tells Railway to ignore frontend files and only deploy backend
+# Frontend files
+../src/
+../public/
+../netlify/
+../index.html
+../vite.config.js
+../eslint.config.js
+../README.md
+../NOVELCRAFT-BLUEPRINT-COMPLETE.md
+../netlify.toml
+../.env
+
+# Git and version control
+../.git/
+../.gitignore
+
+# Frontend dependencies
+../node_modules/
+../package.json
+../package-lock.json
+
+# Development files
+*.log
+.DS_Store
+Thumbs.db
+.vscode/
+
+# Backend development files (keep production files only)
+.env.local
+.env.development

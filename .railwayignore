@@ -1,0 +1,33 @@
+# Only deploy backend directory to Railway
+# Frontend should be deployed to Netlify
+
+# Frontend files and directories
+src/
+public/
+netlify/
+index.html
+vite.config.js
+eslint.config.js
+
+# Root package.json (frontend)
+package.json
+package-lock.json
+node_modules/
+
+# Environment files (use Railway dashboard for env vars)
+.env
+.env.local
+.env.development
+.env.production
+
+# Documentation
+README.md
+NOVELCRAFT-BLUEPRINT-COMPLETE.md
+netlify.toml
+
+# Git and development files
+.git/
+.gitignore
+*.log
+.DS_Store
+Thumbs.db
