@@ -8,6 +8,7 @@ import dotenv from 'dotenv';
 import autoGenerateRouter from './routes/autoGenerate.js';
 import generateNovelRouter from './routes/generateNovel.js';
 import streamGenerationRouter from './routes/streamGeneration.js';
+import advancedGenerationRouter from './routes/advancedGeneration.js';
 
 // Load environment variables
 dotenv.config();
@@ -64,6 +65,7 @@ app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 app.use('/api', autoGenerateRouter);
 app.use('/api', generateNovelRouter);
 app.use('/api', streamGenerationRouter);
+app.use('/api', advancedGenerationRouter);
 
 // Health check endpoint
 app.get('/health', async (req, res) => {
@@ -99,12 +101,16 @@ app.get('/health', async (req, res) => {
 app.get('/', (req, res) => {
   res.json({
     message: 'Somers Novel Generator API',
-    version: '1.0.0',
+    version: '2.0.0',
     endpoints: {
       health: '/health',
       quickGenerate: 'POST /api/generateNovel',
       autoGenerate: 'POST /api/autoGenerateNovel',
-      streamGeneration: 'POST /api/streamGeneration'
+      streamGeneration: 'POST /api/streamGeneration',
+      // Advanced endpoints
+      createOutline: 'POST /api/createOutline',
+      advancedGeneration: 'POST /api/advancedGeneration',
+      advancedStreaming: 'POST /api/advancedStreamGeneration'
     }
   });
 });
