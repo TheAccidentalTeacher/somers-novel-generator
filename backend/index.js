@@ -37,11 +37,14 @@ class CORSManager {
   constructor() {
     this.isDevelopment = process.env.NODE_ENV !== 'production';
     
-    // Get frontend URL from environment variable or use default
-    const frontendUrl = process.env.FRONTEND_URL || 'https://somers-novel-writer.netlify.app';
+    // Get frontend URL from CORS_ORIGINS environment variable (Railway)
+    const corsOrigins = process.env.CORS_ORIGINS || process.env.FRONTEND_URL || 'https://somers-novel-writer.netlify.app';
+    
+    // Handle multiple origins (comma-separated)
+    const originsList = corsOrigins.split(',').map(origin => origin.trim());
     
     this.productionDomains = new Set([
-      frontendUrl, // Railway environment variable
+      ...originsList, // Railway CORS_ORIGINS environment variable
       'https://somers-novel-writer.netlify.app' // Fallback
     ]);
     
@@ -58,6 +61,8 @@ class CORSManager {
 
     console.log(`🔧 CORS: Production domains configured:`, Array.from(this.productionDomains));
     console.log(`🔧 CORS: Environment: ${this.isDevelopment ? 'development' : 'production'}`);
+    console.log(`🔧 CORS: Raw CORS_ORIGINS env:`, process.env.CORS_ORIGINS);
+    console.log(`🔧 CORS: Raw FRONTEND_URL env:`, process.env.FRONTEND_URL);
   }
 
   isValidOrigin(origin) {
@@ -217,8 +222,11 @@ app.use('*', (req, res) => {
 // Start server
 app.listen(PORT, () => {
   console.log(`🚀 Somers Novel Generator backend running on port ${PORT}`);
-  console.log(` Environment: ${process.env.NODE_ENV || 'development'}`);
+  console.log(`🔧 Environment: ${process.env.NODE_ENV || 'development'}`);
   console.log(`🤖 OpenAI API: ${process.env.OPENAI_API_KEY ? '✅ Configured' : '❌ Not configured'}`);
+  console.log(`📡 CORS Origins: ${process.env.CORS_ORIGINS || 'Not set'}`);
+  console.log(`🌐 Frontend URL: ${process.env.FRONTEND_URL || 'Not set'}`);
+  console.log(`🔒 CORS Configuration: ✅ Bulletproof CORS enabled`);
 });
 
 export default app;
