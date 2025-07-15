@@ -191,11 +191,28 @@ class APIService {
   // =====================================================================
 
   async createOutline(storyData, signal = null) {
-    return this.makeRequest('/createOutline', {
+    // SIMPLE FIX: Route old outline calls to new simple system
+    const { synopsis, genre = 'fantasy', wordCount = 50000 } = storyData;
+    
+    // Calculate chapter count based on word count
+    const chapterCount = Math.max(8, Math.min(15, Math.round(wordCount / 4000)));
+    
+    const settings = {
+      genre,
+      wordCount,
+      chapterCount
+    };
+    
+    const response = await this.makeRequest('/simple-generate-new/outline', {
       method: 'POST',
-      body: storyData,
-      signal: signal
+      body: JSON.stringify({ 
+        premise: synopsis,
+        settings 
+      }),
+      signal
     });
+    
+    return response;
   }
 
   async generateNovel(storyData) {
@@ -297,6 +314,21 @@ class APIService {
       console.error('❌ Simple outline generation failed:', error);
       throw error;
     }
+  }
+
+  // NEW: Simple generation endpoints
+  async generateSimpleOutlineNew(premise, settings = {}) {
+    return this.makeRequest('/simple-generate-new/outline', {
+      method: 'POST',
+      body: JSON.stringify({ premise, settings }),
+    });
+  }
+
+  async generateSimpleNovel(premise, settings = {}) {
+    return this.makeRequest('/simple-generate-new/full-novel', {
+      method: 'POST',
+      body: JSON.stringify({ premise, settings }),
+    });
   }
 }
 
