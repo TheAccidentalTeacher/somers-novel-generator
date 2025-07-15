@@ -212,12 +212,25 @@ async function generateChaptersStream(streamId, streamData, res) {
       try {
         console.log(`🖋️ Generating chapter ${i + 1}: ${chapterOutline.title}...`);
         
+        // Start heartbeat to keep connection alive during generation
+        const heartbeat = setInterval(() => {
+          res.write(`data: ${JSON.stringify({
+            type: 'heartbeat',
+            chapterNumber: i + 1,
+            message: 'Still generating...',
+            progress: Math.round((i / streamData.outline.length) * 100)
+          })}\n\n`);
+        }, 30000); // Send heartbeat every 30 seconds
+        
         // Generate chapter content
         const chapter = await generator.generateChapter(chapterOutline, {
           previousChapters: streamData.chapters,
           fullPremise: streamData.settings.premise || '',
           genre: streamData.settings.genre || 'fantasy'
         });
+        
+        // Stop heartbeat
+        clearInterval(heartbeat);
         
         console.log(`✅ Chapter ${i + 1} generated (${chapter.wordCount || 0} words)`);
         
@@ -241,6 +254,11 @@ async function generateChaptersStream(streamId, streamData, res) {
         console.log(`📤 Sent 'chapter_complete' event:`, completeEvent);
         
       } catch (chapterError) {
+        // Stop heartbeat if it exists
+        if (typeof heartbeat !== 'undefined') {
+          clearInterval(heartbeat);
+        }
+        
         // Send chapter error event
         res.write(`data: ${JSON.stringify({
           type: 'chapter_error',

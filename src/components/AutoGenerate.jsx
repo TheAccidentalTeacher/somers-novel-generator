@@ -559,14 +559,14 @@ const AutoGenerate = ({ conflictData, apiConfig, onSuccess, onError, onNotificat
       const resetStreamTimeout = () => {
         if (streamTimeout) clearTimeout(streamTimeout);
         streamTimeout = setTimeout(() => {
-          console.log('⏰ Stream timeout - no events received for 60 seconds');
+          console.log('⏰ Stream timeout - no events received for 5 minutes');
           addLog('⏰ Stream timeout - falling back to batch mode', 'warning');
           eventSource.close();
           startBatchGeneration(storyData).catch(fallbackError => {
             console.error('Timeout fallback generation error:', fallbackError);
             throw fallbackError;
           });
-        }, 60000); // 60 second timeout
+        }, 300000); // 5 minute timeout
       };
       
       resetStreamTimeout(); // Start the timeout
@@ -595,6 +595,11 @@ const AutoGenerate = ({ conflictData, apiConfig, onSuccess, onError, onNotificat
     switch (data.type) {
       case 'connected':
         addLog(`🔗 Connected to live stream`, 'success');
+        break;
+        
+      case 'heartbeat':
+        console.log(`💓 Heartbeat: Chapter ${data.chapterNumber} - ${data.message}`);
+        setProgress(20 + (data.progress * 0.7)); // Update progress
         break;
         
       case 'chapter_start':
