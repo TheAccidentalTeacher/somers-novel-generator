@@ -9,6 +9,9 @@ import autoGenerateRouter from './routes/autoGenerate.js';
 import generateNovelRouter from './routes/generateNovel.js';
 import streamGenerationRouter from './routes/streamGeneration.js';
 import advancedGenerationRouter from './routes/advancedGeneration.js';
+import simpleGenerateRouter from './routes/simpleGenerate.js';
+// NEW: Simple, clean novel generator
+import simpleGenerateNewRouter from './routes/simpleGenerateNew.js';
 
 // Load environment variables
 dotenv.config();
@@ -204,6 +207,8 @@ app.use('/api', autoGenerateRouter);
 app.use('/api', generateNovelRouter);
 app.use('/api', streamGenerationRouter);
 app.use('/api', advancedGenerationRouter);
+app.use('/api/simple-generate', simpleGenerateRouter);
+app.use('/api/simple-generate-new', simpleGenerateNewRouter);
 
 // Health check endpoint for connection testing
 app.get('/api/health', (req, res) => {

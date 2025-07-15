@@ -272,6 +272,32 @@ class APIService {
   reset() {
     this.config = { ...this.defaultConfig };
   }
+
+  // NEW: Simple outline generation (streamlined approach)
+  async generateSimpleOutline(premise, storyType = 'fantasy') {
+    console.log(`🚀 Starting simple outline generation (${premise.length} characters)...`);
+    
+    try {
+      const response = await this.makeRequest('/simple-generate', {
+        method: 'POST',
+        body: JSON.stringify({
+          premise: premise.trim(),
+          storyType
+        }),
+        timeout: 60000 // 1 minute timeout for outline generation
+      });
+
+      if (response.success) {
+        console.log(`✅ Simple outline generated: ${response.outline.length} chapters`);
+        return response;
+      } else {
+        throw new Error(response.error || 'Failed to generate outline');
+      }
+    } catch (error) {
+      console.error('❌ Simple outline generation failed:', error);
+      throw error;
+    }
+  }
 }
 
 // =====================================================================
