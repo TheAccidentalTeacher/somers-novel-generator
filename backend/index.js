@@ -29,25 +29,20 @@ app.use(helmet({
 }));
 
 // =====================================================================
-// BULLETPROOF CORS CONFIGURATION
+// BULLETPROOF CORS CONFIGURATION - v2.0
 // =====================================================================
-// Completely rewritten from scratch for maximum reliability and security
+// Rewritten to handle the exact Netlify URL correctly
 
 class CORSManager {
   constructor() {
     this.isDevelopment = process.env.NODE_ENV !== 'production';
     
-    // Get frontend URL from CORS_ORIGINS environment variable (Railway)
-    const corsOrigins = process.env.CORS_ORIGINS || process.env.FRONTEND_URL || 'https://somers-novel-writer.netlify.app';
-    
-    // Handle multiple origins (comma-separated)
-    const originsList = corsOrigins.split(',').map(origin => origin.trim());
-    
+    // EXACT production domains - hardcoded for reliability
     this.productionDomains = new Set([
-      ...originsList, // Railway CORS_ORIGINS environment variable
-      'https://somers-novel-writer.netlify.app' // Fallback
+      'https://somers-novel-writer.netlify.app'
     ]);
     
+    // Development domains
     this.developmentDomains = new Set([
       'http://localhost:5173',
       'http://localhost:5174', 
@@ -59,28 +54,39 @@ class CORSManager {
       'http://127.0.0.1:4173'
     ]);
 
-    console.log(`🔧 CORS: Production domains configured:`, Array.from(this.productionDomains));
+    console.log(`🔧 CORS: Production domains:`, Array.from(this.productionDomains));
+    console.log(`🔧 CORS: Development domains:`, Array.from(this.developmentDomains));
     console.log(`🔧 CORS: Environment: ${this.isDevelopment ? 'development' : 'production'}`);
-    console.log(`🔧 CORS: Raw CORS_ORIGINS env:`, process.env.CORS_ORIGINS);
-    console.log(`🔧 CORS: Raw FRONTEND_URL env:`, process.env.FRONTEND_URL);
   }
 
   isValidOrigin(origin) {
-    // No origin means same-origin or tools like Postman/curl
-    if (!origin) return true;
+    // No origin means same-origin requests or tools like Postman
+    if (!origin) {
+      console.log(`✅ CORS: No origin (same-origin request)`);
+      return true;
+    }
 
-    // Production domains (exact match)
-    if (this.productionDomains.has(origin)) return true;
+    // Check production domains (exact match)
+    if (this.productionDomains.has(origin)) {
+      console.log(`✅ CORS: Production domain matched: ${origin}`);
+      return true;
+    }
 
-    // Development domains (exact match)
-    if (this.developmentDomains.has(origin)) return true;
+    // Check development domains (exact match)
+    if (this.developmentDomains.has(origin)) {
+      console.log(`✅ CORS: Development domain matched: ${origin}`);
+      return true;
+    }
 
-    // Netlify preview/branch deploys (secure pattern matching)
-    if (this.isValidNetlifyDomain(origin)) return true;
+    // In development, allow Netlify preview domains
+    if (this.isDevelopment && this.isValidNetlifyDomain(origin)) {
+      console.log(`✅ CORS: Netlify preview domain allowed: ${origin}`);
+      return true;
+    }
 
-    // Development localhost with any port (secure pattern)
-    if (this.isDevelopment && this.isValidDevelopmentDomain(origin)) return true;
-
+    console.log(`❌ CORS: Origin not allowed: ${origin}`);
+    console.log(`❌ CORS: Production domains:`, Array.from(this.productionDomains));
+    console.log(`❌ CORS: Development domains:`, Array.from(this.developmentDomains));
     return false;
   }
 
@@ -101,14 +107,17 @@ class CORSManager {
   getCORSOptions() {
     return {
       origin: (origin, callback) => {
+        console.log(`🔍 CORS: Checking origin: ${origin || 'no-origin'}`);
+        
         const isValid = this.isValidOrigin(origin);
         
         if (isValid) {
-          console.log(`✅ CORS: Allowed origin: ${origin || 'same-origin'}`);
+          console.log(`✅ CORS: Origin approved: ${origin || 'same-origin'}`);
           callback(null, true);
         } else {
-          console.error(`❌ CORS: Blocked origin: ${origin}`);
-          callback(new Error(`CORS policy violation: Origin ${origin} is not allowed`), false);
+          console.error(`❌ CORS: Origin rejected: ${origin}`);
+          // Don't callback with error - just deny
+          callback(null, false);
         }
       },
       
