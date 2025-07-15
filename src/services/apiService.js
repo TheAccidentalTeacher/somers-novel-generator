@@ -183,11 +183,10 @@ class APIService {
 
   async createOutline(storyData, signal = null) {
     // SIMPLE FIX: Route old outline calls to new simple system
-    const { synopsis, genre = 'fantasy', wordCount = 50000 } = storyData;
+    const { synopsis, genre = 'fantasy', wordCount = 50000, chapters } = storyData;
     
-    // Calculate chapter count based on word count - more flexible formula
-    // Target ~2000 words per chapter, with reasonable bounds
-    const chapterCount = Math.max(5, Math.min(25, Math.round(wordCount / 2000)));
+    // Use provided chapter count if available, otherwise calculate
+    const chapterCount = chapters || Math.max(5, Math.min(25, Math.round(wordCount / 2000)));
     
     const settings = {
       genre,
