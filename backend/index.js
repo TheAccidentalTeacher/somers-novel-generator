@@ -33,6 +33,7 @@ const corsOptions = {
   origin: [
     'http://localhost:5173',
     'http://localhost:5174',
+    'https://somers-novel-writer.netlify.app',
     process.env.FRONTEND_URL || 'https://new-novel-generator.netlify.app',
     /\.netlify\.app$/
   ],
