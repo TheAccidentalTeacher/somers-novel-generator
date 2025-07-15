@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import LoadingSpinner from './LoadingSpinner';
 import './AutoGenerate.css';
 
+// Advanced Novel Generator v2.0 - Updated 2025-07-14
 const AutoGenerate = ({ conflictData, apiConfig, onSuccess, onError, onNotification }) => {
   const [isGenerating, setIsGenerating] = useState(false);
   const [jobId, setJobId] = useState(null);

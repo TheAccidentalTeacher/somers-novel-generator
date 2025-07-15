@@ -8,6 +8,7 @@ class AdvancedAIService {
       console.warn('⚠️  OpenAI API key not configured. Advanced AI services will not be available.');
       this.openai = null;
     } else {
+      console.log('✅ Advanced AI Service initialized successfully - v2.0 (2025-07-14)');
       this.openai = new OpenAI({
         apiKey: apiKey
       });
