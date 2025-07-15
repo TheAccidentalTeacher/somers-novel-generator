@@ -6,9 +6,19 @@ const router = express.Router();
 // POST /api/advanced/createOutline - Create story outline
 router.post('/createOutline', async (req, res) => {
   try {
+    console.log('📝 OUTLINE REQUEST RECEIVED:', {
+      timestamp: new Date().toISOString(),
+      hasStoryData: !!req.body.storyData,
+      storyTitle: req.body.storyData?.title,
+      storyGenre: req.body.storyData?.genre,
+      wordCount: req.body.storyData?.wordCount,
+      chapters: req.body.storyData?.chapters
+    });
+
     const { storyData } = req.body;
 
     if (!storyData) {
+      console.log('❌ No story data provided');
       return res.status(400).json({ error: 'Story data is required' });
     }
 
@@ -17,6 +27,7 @@ router.post('/createOutline', async (req, res) => {
     const missing = required.filter(field => !storyData[field]);
     
     if (missing.length > 0) {
+      console.log('❌ Missing required fields:', missing);
       return res.status(400).json({ 
         error: 'Missing required fields', 
         missing: missing 
@@ -24,6 +35,7 @@ router.post('/createOutline', async (req, res) => {
     }
 
     if (!advancedAI.isConfigured()) {
+      console.log('❌ OpenAI not configured - returning error');
       return res.status(503).json({ 
         error: 'AI service not available', 
         message: 'OpenAI API key not configured' 
@@ -31,8 +43,11 @@ router.post('/createOutline', async (req, res) => {
     }
 
     console.log(`📝 Creating outline for "${storyData.title}" (${storyData.genre})`);
+    console.log('📝 Starting OpenAI outline generation...');
     
     const outline = await advancedAI.createOutline(storyData);
+    
+    console.log(`✅ Outline created successfully: ${outline.length} chapters`);
     
     res.json({
       success: true,
@@ -41,7 +56,11 @@ router.post('/createOutline', async (req, res) => {
     });
 
   } catch (error) {
-    console.error('Outline creation error:', error);
+    console.error('💥 OUTLINE ERROR:', {
+      message: error.message,
+      stack: error.stack,
+      timestamp: new Date().toISOString()
+    });
     res.status(500).json({ 
       error: 'Outline creation failed', 
       message: error.message 
