@@ -386,6 +386,11 @@ const AutoGenerate = ({ conflictData, apiConfig, onSuccess, onError, onNotificat
   const startGeneration = async () => {
     // If we're in setup phase, start planning
     if (generationPhase === 'setup') {
+      // Only start if we're not already creating an outline
+      if (isCreatingOutline) {
+        addLog('Outline creation already in progress, please wait...', 'warning');
+        return;
+      }
       setGenerationPhase('planning');
       await createOutline();
       return;
@@ -393,7 +398,11 @@ const AutoGenerate = ({ conflictData, apiConfig, onSuccess, onError, onNotificat
 
     // If we're in planning phase and outline is not ready, wait for it
     if (generationPhase === 'planning' && outline.length === 0) {
-      addLog('Waiting for outline creation to complete...', 'info');
+      if (isCreatingOutline) {
+        addLog('Outline creation in progress, please wait...', 'info');
+      } else {
+        addLog('Waiting for outline creation to complete...', 'info');
+      }
       return;
     }
 
@@ -513,9 +522,17 @@ const AutoGenerate = ({ conflictData, apiConfig, onSuccess, onError, onNotificat
       return;
     }
 
+    // Cancel any existing outline creation if somehow still running
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort();
+    }
+
     try {
       setIsCreatingOutline(true);
       setCurrentProcess('Analyzing your synopsis with GPT-4...');
+      
+      // Create new abort controller specifically for outline creation
+      abortControllerRef.current = new AbortController();
       
       const outlineData = {
         title: storySetup.title,
@@ -538,23 +555,34 @@ const AutoGenerate = ({ conflictData, apiConfig, onSuccess, onError, onNotificat
 
       // Race between API call and timeout
       const data = await Promise.race([
-        apiService.createOutline(outlineData),
+        apiService.createOutline(outlineData, abortControllerRef.current.signal),
         timeoutPromise
       ]);
 
-      setOutline(data.outline);
-      setCurrentProcess('');
-      setGenerationPhase('outline');
-      addLog('Story outline created successfully', 'success');
-      onNotification('Outline ready for review!', 'success');
+      // Only update state if we haven't been aborted
+      if (!abortControllerRef.current.signal.aborted) {
+        setOutline(data.outline);
+        setCurrentProcess('');
+        setGenerationPhase('outline');
+        addLog('Story outline created successfully', 'success');
+        onNotification('Outline ready for review!', 'success');
+      }
 
     } catch (error) {
       console.error('Outline creation error:', error);
-      setError(error);
-      setCurrentProcess('');
-      setGenerationPhase('setup');
-      addLog(`Outline creation failed: ${error.message}`, 'error');
-      onError(error);
+      
+      // Don't update error state if this was intentionally aborted
+      if (error.name !== 'AbortError' && !abortControllerRef.current?.signal.aborted) {
+        setError(error);
+        setCurrentProcess('');
+        setGenerationPhase('setup');
+        addLog(`Outline creation failed: ${error.message}`, 'error');
+        onError(error);
+      } else if (error.name === 'AbortError') {
+        addLog('Outline creation was cancelled', 'info');
+        setCurrentProcess('');
+        setGenerationPhase('setup');
+      }
     } finally {
       setIsCreatingOutline(false);
     }
@@ -913,6 +941,17 @@ const AutoGenerate = ({ conflictData, apiConfig, onSuccess, onError, onNotificat
     }
   };
 
+  const cancelOutlineCreation = () => {
+    if (isCreatingOutline && abortControllerRef.current) {
+      abortControllerRef.current.abort();
+      setIsCreatingOutline(false);
+      setCurrentProcess('');
+      setGenerationPhase('setup');
+      addLog('Outline creation cancelled by user', 'warning');
+      onNotification('Outline creation cancelled', 'warning');
+    }
+  };
+
   if (result) {
     return (
       <div className="auto-generate results">
@@ -1232,12 +1271,7 @@ const AutoGenerate = ({ conflictData, apiConfig, onSuccess, onError, onNotificat
                 <div style={{ textAlign: 'center', marginTop: '20px' }}>
                   <button 
                     className="btn btn-error"
-                    onClick={() => {
-                      setIsCreatingOutline(false);
-                      setCurrentProcess('');
-                      setGenerationPhase('setup');
-                      addLog('Outline creation cancelled by user', 'warning');
-                    }}
+                    onClick={cancelOutlineCreation}
                   >
                     ❌ Cancel Planning
                   </button>
