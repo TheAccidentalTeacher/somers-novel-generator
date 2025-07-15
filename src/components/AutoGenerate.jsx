@@ -546,6 +546,16 @@ const AutoGenerate = ({ conflictData, apiConfig, onSuccess, onError, onNotificat
         fictionLength: storySetup.fictionLength
       };
 
+      // Debug logging
+      console.log('🔍 Outline Data Debug:');
+      console.log('Synopsis length being sent:', outlineData.synopsis.length);
+      console.log('Synopsis first 200 chars:', outlineData.synopsis.substring(0, 200));
+      console.log('Synopsis last 200 chars:', outlineData.synopsis.substring(outlineData.synopsis.length - 200));
+      console.log('Full outline data structure:', {
+        ...outlineData,
+        synopsis: `[${outlineData.synopsis.length} characters]`
+      });
+
       setCurrentProcess('Creating detailed story structure...');
 
       // Create a timeout promise to prevent infinite hanging
@@ -1178,19 +1188,47 @@ const AutoGenerate = ({ conflictData, apiConfig, onSuccess, onError, onNotificat
               {calculatedChapters > 0 && (
                 <div className="setup-section">
                   <h4>📝 Story Synopsis</h4>
-                  <p>Provide a detailed synopsis (up to 10,000 words) - the more detail, the better your novel!</p>
+                  <p>Provide a detailed synopsis (up to 10,000 words / 60,000 characters) - the more detail, the better your novel!</p>
                   
                   <div className="form-group">
                     <textarea
                       className="form-textarea synopsis-input"
-                      rows="12"
-                      maxLength="10000"
+                      rows="15"
+                      maxLength="60000"
                       placeholder="Write your detailed story synopsis here. Include main characters, plot points, themes, setting, conflicts, and how you want the story to develop. The AI will use this as the foundation for your entire novel..."
                       value={storySetup.synopsis}
                       onChange={(e) => setStorySetup(prev => ({ ...prev, synopsis: e.target.value }))}
+                      style={{ 
+                        minHeight: '300px',
+                        resize: 'vertical',
+                        fontFamily: 'monospace',
+                        fontSize: '14px',
+                        lineHeight: '1.5'
+                      }}
                     />
                     <div className="character-count">
-                      {storySetup.synopsis.length.toLocaleString()} / 10,000 characters
+                      {storySetup.synopsis.length.toLocaleString()} / 60,000 characters (~{Math.round(storySetup.synopsis.length / 6)} words)
+                      {storySetup.synopsis.length > 50000 && (
+                        <div style={{ color: 'orange', fontSize: '12px', marginTop: '5px' }}>
+                          ⚠️ Very large synopsis detected. If you experience issues, try breaking it into smaller sections.
+                        </div>
+                      )}
+                    </div>
+                    <div style={{ marginTop: '10px' }}>
+                      <button 
+                        type="button"
+                        className="btn btn-small btn-outline"
+                        onClick={() => {
+                          console.log('🔍 Synopsis Debug Info:');
+                          console.log('Length:', storySetup.synopsis.length);
+                          console.log('Word count estimate:', Math.round(storySetup.synopsis.length / 6));
+                          console.log('First 100 chars:', storySetup.synopsis.substring(0, 100));
+                          console.log('Last 100 chars:', storySetup.synopsis.substring(storySetup.synopsis.length - 100));
+                          alert(`Synopsis Debug:\nLength: ${storySetup.synopsis.length} characters\nWords: ~${Math.round(storySetup.synopsis.length / 6)}\nCheck console for more details`);
+                        }}
+                      >
+                        🔍 Debug Synopsis Length
+                      </button>
                     </div>
                   </div>
                 </div>

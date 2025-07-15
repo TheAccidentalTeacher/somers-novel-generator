@@ -7,6 +7,8 @@ const router = express.Router();
 router.post('/createOutline', async (req, res) => {
   try {
     console.log('📋 Creating outline...');
+    console.log('🔍 Request body synopsis length:', req.body.synopsis?.length || 'undefined');
+    console.log('🔍 Request body synopsis preview:', req.body.synopsis?.substring(0, 200) || 'undefined');
     
     const {
       title,
@@ -19,6 +21,8 @@ router.post('/createOutline', async (req, res) => {
       synopsis,
       fictionLength
     } = req.body;
+
+    console.log('🔍 After destructuring synopsis length:', synopsis?.length || 'undefined');
 
     // Validate required fields
     if (!title || !genre || !synopsis || !chapters) {
