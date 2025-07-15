@@ -37,31 +37,94 @@ class SimpleNovelGenerator {
       chapterCount = 12
     } = settings;
 
-    // BASIC PROMPT - No fancy engineering, just raw auto-generation
-    const prompt = `Write a ${chapterCount} chapter outline for a ${genre} novel. Here's the story idea:
+    // IMPROVED PROMPT - More explicit JSON formatting instructions
+    const prompt = `You are a professional novel outline generator. Create a detailed ${chapterCount} chapter outline for a ${genre} novel.
 
+Story premise:
 ${premise}
 
-Make it ${wordCount} words total. Return as JSON:
-[{"number": 1, "title": "Chapter Name", "summary": "What happens", "wordTarget": ${Math.round(wordCount/chapterCount)}}]`;
+Target word count: ${wordCount} words (approximately ${Math.round(wordCount/chapterCount)} words per chapter)
+
+IMPORTANT: You must respond with ONLY a valid JSON array in this exact format:
+[
+  {
+    "number": 1,
+    "title": "Chapter Title Here",
+    "summary": "Detailed description of what happens in this chapter",
+    "wordTarget": ${Math.round(wordCount/chapterCount)}
+  },
+  {
+    "number": 2,
+    "title": "Chapter Title Here", 
+    "summary": "Detailed description of what happens in this chapter",
+    "wordTarget": ${Math.round(wordCount/chapterCount)}
+  }
+]
+
+Create ${chapterCount} chapters. Return ONLY the JSON array, no other text.`;
 
     try {
+      console.log('🤖 Calling OpenAI for outline generation...');
       const response = await this.getOpenAIClient().chat.completions.create({
         model: 'gpt-4o-mini', // CHEAP model for outlining - just structure
         messages: [{ role: 'user', content: prompt }],
-        max_tokens: 1500, 
-        temperature: 0.7 // Lower temp for structured output
+        max_tokens: 2000, // Increased for longer outlines
+        temperature: 0.3 // Lower temp for better JSON compliance
       });
 
-      const content = response.choices[0].message.content;
-      const jsonMatch = content.match(/\[[\s\S]*\]/);
+      const content = response.choices[0].message.content.trim();
+      console.log('🤖 OpenAI response received:', content.length, 'characters');
+      console.log('🤖 First 200 chars:', content.substring(0, 200));
+      console.log('🤖 Last 200 chars:', content.substring(content.length - 200));
+
+      // Try to extract JSON - be more flexible with the parsing
+      let jsonData;
       
-      if (!jsonMatch) {
-        throw new Error('Could not parse outline JSON');
+      // First, try to parse the entire content as JSON
+      try {
+        jsonData = JSON.parse(content);
+      } catch (parseError) {
+        console.log('❌ Full content not JSON, trying to extract array...');
+        
+        // Try to find JSON array in the content
+        const jsonMatch = content.match(/\[[\s\S]*\]/);
+        
+        if (!jsonMatch) {
+          console.error('❌ No JSON array found in response');
+          throw new Error('No JSON array found in OpenAI response');
+        }
+        
+        try {
+          jsonData = JSON.parse(jsonMatch[0]);
+        } catch (extractError) {
+          console.error('❌ Failed to parse extracted JSON:', extractError);
+          throw new Error('Failed to parse extracted JSON from OpenAI response');
+        }
       }
 
-      return JSON.parse(jsonMatch[0]);
+      // Validate the structure
+      if (!Array.isArray(jsonData)) {
+        throw new Error('Response is not an array');
+      }
+
+      if (jsonData.length === 0) {
+        throw new Error('Empty outline array received');
+      }
+
+      // Validate each chapter has required fields
+      for (let i = 0; i < jsonData.length; i++) {
+        const chapter = jsonData[i];
+        if (!chapter.number || !chapter.title || !chapter.summary) {
+          console.error('❌ Invalid chapter structure:', chapter);
+          throw new Error(`Chapter ${i + 1} missing required fields`);
+        }
+      }
+
+      console.log('✅ Outline validation passed:', jsonData.length, 'chapters');
+      return jsonData;
+      
     } catch (error) {
+      console.error('❌ Outline generation error:', error);
       throw new Error(`Outline generation failed: ${error.message}`);
     }
   }

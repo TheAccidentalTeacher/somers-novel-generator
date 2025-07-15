@@ -50,16 +50,25 @@ router.post('/full-novel', async (req, res) => {
 // Generate just outline (for testing/iteration)
 router.post('/outline', async (req, res) => {
   try {
+    console.log('📝 Outline request received:', {
+      bodyKeys: Object.keys(req.body),
+      premiseLength: req.body.premise?.length,
+      settings: req.body.settings
+    });
+    
     const { premise, settings = {} } = req.body;
     
     if (!premise) {
+      console.log('❌ No premise provided');
       return res.status(400).json({ 
         success: false, 
         error: 'Premise is required' 
       });
     }
     
+    console.log('🚀 Starting outline generation...');
     const outline = await generator.generateOutline(premise, settings);
+    console.log('✅ Outline generated successfully:', outline.length, 'chapters');
     
     res.json({
       success: true,
@@ -67,10 +76,12 @@ router.post('/outline', async (req, res) => {
     });
     
   } catch (error) {
-    console.error('Outline error:', error);
+    console.error('❌ Outline error:', error);
+    console.error('Error stack:', error.stack);
     res.status(500).json({
       success: false,
-      error: error.message
+      error: error.message,
+      details: error.stack
     });
   }
 });
@@ -297,6 +308,36 @@ async function generateChaptersStream(streamId, streamData, res) {
     activeStreams.delete(streamId);
   }
 }
+
+// Test endpoint: Check OpenAI connection
+router.get('/test-openai', async (req, res) => {
+  try {
+    // Test if OpenAI API key is configured and working
+    const testGenerator = new SimpleNovelGenerator();
+    const client = testGenerator.getOpenAIClient();
+    
+    // Make a simple test request
+    const response = await client.chat.completions.create({
+      model: 'gpt-4o-mini',
+      messages: [{ role: 'user', content: 'Say "API key working" if you can read this.' }],
+      max_tokens: 10
+    });
+    
+    res.json({
+      success: true,
+      message: 'OpenAI API key is working',
+      testResponse: response.choices[0].message.content
+    });
+    
+  } catch (error) {
+    console.error('OpenAI test error:', error);
+    res.status(500).json({
+      success: false,
+      error: `OpenAI test failed: ${error.message}`,
+      details: error.message
+    });
+  }
+});
 
 // Legacy compatibility endpoint
 router.post('/simple', async (req, res) => {
