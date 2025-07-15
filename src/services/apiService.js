@@ -23,7 +23,7 @@ class APIService {
       // Production (Netlify) - use environment variable if available, otherwise Railway URL
       if (hostname.includes('netlify.app')) {
         // Netlify will have VITE_API_BASE_URL set as environment variable
-        return import.meta.env.VITE_API_BASE_URL || 'https://somers-novel-generator-production.up.railway.app/api';
+        return import.meta.env.VITE_API_BASE_URL || 'https://ultimate-worksheet-generator-production.up.railway.app/api';
       }
       
       // Local development
@@ -33,7 +33,7 @@ class APIService {
     }
     
     // Fallback - use environment variable or Railway URL
-    return import.meta.env.VITE_API_BASE_URL || 'https://somers-novel-generator-production.up.railway.app/api';
+    return import.meta.env.VITE_API_BASE_URL || 'https://ultimate-worksheet-generator-production.up.railway.app/api';
   }
 
   updateConfig(newConfig) {
@@ -141,28 +141,40 @@ class APIService {
   }
 
   // =====================================================================
-  // HEALTH CHECK METHODS
+  // CONNECTION TEST METHODS
   // =====================================================================
 
-  async checkHealth() {
+  async testConnection() {
     try {
-      const healthUrl = this.config.baseUrl.replace('/api', '/health');
-      const response = await fetch(healthUrl, {
-        method: 'GET',
-        headers: {
-          'Accept': 'application/json'
-        },
-        credentials: 'include',
-        mode: 'cors'
+      // Test connection using a lightweight API endpoint
+      // This is better than a separate health endpoint
+      const response = await this.makeRequest('/createOutline', {
+        method: 'POST',
+        body: {
+          // Minimal test data to verify backend connectivity
+          title: 'Connection Test',
+          genre: 'Test',
+          wordCount: 1000,
+          chapters: 1
+        }
       });
 
-      if (!response.ok) {
-        throw new Error(`Health check failed: ${response.status} ${response.statusText}`);
-      }
-
-      return await response.json();
+      return {
+        status: 'connected',
+        message: 'Backend connected successfully',
+        timestamp: new Date().toISOString()
+      };
     } catch (error) {
-      throw new APIError('Health check failed', 0, error.message);
+      // Even if the request fails, if we get a proper API response (like validation error),
+      // it means the connection is working
+      if (error.status && error.status >= 400 && error.status < 500) {
+        return {
+          status: 'connected',
+          message: 'Backend connected (API validation as expected)',
+          timestamp: new Date().toISOString()
+        };
+      }
+      throw new APIError('Backend connection failed', 0, error.message);
     }
   }
 

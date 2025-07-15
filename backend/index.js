@@ -174,40 +174,12 @@ app.use('/api', generateNovelRouter);
 app.use('/api', streamGenerationRouter);
 app.use('/api', advancedGenerationRouter);
 
-// Health check endpoint
-app.get('/health', async (req, res) => {
-  try {
-    // Check only the APIs we actually use
-    const apiStatus = {
-      openai: process.env.OPENAI_API_KEY ? 'configured' : 'not configured'
-    };
-    
-    res.json({
-      status: 'ok',
-      timestamp: new Date().toISOString(),
-      service: 'somers-novel-generator-backend',
-      version: '2.0.0',
-      environment: process.env.NODE_ENV || 'development',
-      apis: apiStatus,
-      frontend: process.env.FRONTEND_URL || 'not configured',
-      message: 'Somers Novel Generator backend is running'
-    });
-  } catch (error) {
-    res.status(500).json({
-      status: 'error',
-      error: error.message,
-      timestamp: new Date().toISOString()
-    });
-  }
-});
-
 // Root endpoint
 app.get('/', (req, res) => {
   res.json({
     message: 'Somers Novel Generator API',
     version: '2.0.0',
     endpoints: {
-      health: '/health',
       quickGenerate: 'POST /api/generateNovel',
       autoGenerate: 'POST /api/autoGenerateNovel',
       streamGeneration: 'POST /api/streamGeneration',
@@ -245,8 +217,7 @@ app.use('*', (req, res) => {
 // Start server
 app.listen(PORT, () => {
   console.log(`🚀 Somers Novel Generator backend running on port ${PORT}`);
-  console.log(`📊 Health check: http://localhost:${PORT}/health`);
-  console.log(`🔧 Environment: ${process.env.NODE_ENV || 'development'}`);
+  console.log(` Environment: ${process.env.NODE_ENV || 'development'}`);
   console.log(`🤖 OpenAI API: ${process.env.OPENAI_API_KEY ? '✅ Configured' : '❌ Not configured'}`);
 });
 

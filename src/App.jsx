@@ -38,13 +38,13 @@ function App() {
     return config;
   });
 
-  // Backend health check function using the new API service
+  // Backend connection test function using the new API service
   const checkBackendHealth = async () => {
     try {
-      await apiService.checkHealth();
+      await apiService.testConnection();
       return true;
     } catch (error) {
-      console.error('Backend health check failed:', error);
+      console.error('Backend connection test failed:', error);
       return false;
     }
   };
@@ -53,7 +53,7 @@ function App() {
     // App initialized - perform any startup checks
     checkBackendHealth().then(isHealthy => {
       if (!isHealthy) {
-        addNotification('Backend connection check failed. Please verify your API settings.', 'warning');
+        addNotification('Backend connection test failed. Please verify your API settings.', 'warning');
       }
     });
   }, []);
