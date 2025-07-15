@@ -36,8 +36,13 @@ app.use(helmet({
 class CORSManager {
   constructor() {
     this.isDevelopment = process.env.NODE_ENV !== 'production';
+    
+    // Get frontend URL from environment variable or use default
+    const frontendUrl = process.env.FRONTEND_URL || 'https://somers-novel-writer.netlify.app';
+    
     this.productionDomains = new Set([
-      'https://somers-novel-writer.netlify.app'
+      frontendUrl, // Railway environment variable
+      'https://somers-novel-writer.netlify.app' // Fallback
     ]);
     
     this.developmentDomains = new Set([
@@ -50,6 +55,9 @@ class CORSManager {
       'http://127.0.0.1:3000',
       'http://127.0.0.1:4173'
     ]);
+
+    console.log(`🔧 CORS: Production domains configured:`, Array.from(this.productionDomains));
+    console.log(`🔧 CORS: Environment: ${this.isDevelopment ? 'development' : 'production'}`);
   }
 
   isValidOrigin(origin) {

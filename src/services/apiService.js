@@ -20,19 +20,20 @@ class APIService {
     if (typeof window !== 'undefined') {
       const hostname = window.location.hostname;
       
-      // Production (Netlify)
+      // Production (Netlify) - use environment variable if available, otherwise Railway URL
       if (hostname.includes('netlify.app')) {
-        return 'https://somers-novel-generator-backend-production.up.railway.app/api';
+        // Netlify will have VITE_API_BASE_URL set as environment variable
+        return import.meta.env.VITE_API_BASE_URL || 'https://somers-novel-generator-backend-production.up.railway.app/api';
       }
       
       // Local development
       if (hostname === 'localhost' || hostname === '127.0.0.1') {
-        return 'http://localhost:3000/api';
+        return import.meta.env.VITE_API_BASE_URL || 'http://localhost:3000/api';
       }
     }
     
-    // Fallback
-    return 'https://somers-novel-generator-backend-production.up.railway.app/api';
+    // Fallback - use environment variable or Railway URL
+    return import.meta.env.VITE_API_BASE_URL || 'https://somers-novel-generator-backend-production.up.railway.app/api';
   }
 
   updateConfig(newConfig) {
