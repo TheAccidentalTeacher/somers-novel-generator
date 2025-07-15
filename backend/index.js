@@ -5,13 +5,7 @@ import rateLimit from 'express-rate-limit';
 import dotenv from 'dotenv';
 
 // Import routes
-import autoGenerateRouter from './routes/autoGenerate.js';
-import generateNovelRouter from './routes/generateNovel.js';
-import streamGenerationRouter from './routes/streamGeneration.js';
-import advancedGenerationRouter from './routes/advancedGeneration.js';
-// FIXED: Use the working simple generator
-import simpleGenerateRouter from './routes/simpleGenerateFixed.js';
-// NEW: Simple, clean novel generator
+// NEW: Simple, clean novel generator (ONLY working system)
 import simpleGenerateNewRouter from './routes/simpleGenerateNew.js';
 
 // Load environment variables
@@ -203,12 +197,7 @@ app.use('/api/', limiter);
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
-// API routes
-app.use('/api', autoGenerateRouter);
-app.use('/api', generateNovelRouter);
-app.use('/api', streamGenerationRouter);
-app.use('/api', advancedGenerationRouter);
-app.use('/api/simple-generate', simpleGenerateRouter);
+// API routes - ONLY our working simple system
 app.use('/api/simple-generate-new', simpleGenerateNewRouter);
 
 // Health check endpoint for connection testing

@@ -153,18 +153,9 @@ class APIService {
 
   async testConnection() {
     try {
-      // Test connection using a lightweight API endpoint
-      // This is better than a separate health endpoint
-      const response = await this.makeRequest('/createOutline', {
-        method: 'POST',
-        body: {
-          // Minimal test data to verify backend connectivity
-          title: 'Connection Test',
-          genre: 'Test',
-          synopsis: 'This is a connection test synopsis.',
-          wordCount: 1000,
-          chapters: 1
-        }
+      // Test connection using the health endpoint
+      const response = await this.makeRequest('/health', {
+        method: 'GET'
       });
 
       return {
@@ -215,41 +206,9 @@ class APIService {
     return response;
   }
 
-  async generateNovel(storyData) {
-    return this.makeRequest('/generateNovel', {
-      method: 'POST',
-      body: storyData,
-      timeout: 300000 // 5 minutes for generation
-    });
-  }
-
-  async autoGenerateNovel(conflictData) {
-    return this.makeRequest('/autoGenerateNovel', {
-      method: 'POST',
-      body: conflictData,
-      timeout: 300000 // 5 minutes for generation
-    });
-  }
-
-  async advancedGeneration(storyData) {
-    return this.makeRequest('/advancedGeneration', {
-      method: 'POST',
-      body: storyData,
-      timeout: 600000 // 10 minutes for advanced generation
-    });
-  }
-
-  async getGenerationStatus(jobId) {
-    return this.makeRequest(`/advancedGeneration/${jobId}`, {
-      method: 'GET'
-    });
-  }
-
-  async cancelGeneration(jobId) {
-    return this.makeRequest(`/advancedGeneration/${jobId}`, {
-      method: 'DELETE'
-    });
-  }
+  // =====================================================================
+  // SIMPLE GENERATION METHODS (ONLY WORKING SYSTEM)
+  // =====================================================================
 
   // =====================================================================
   // STREAMING METHODS
