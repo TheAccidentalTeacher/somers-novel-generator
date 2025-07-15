@@ -85,7 +85,7 @@ Create outlines rich enough for a novelist to write compelling, detailed chapter
       const response = await this.openai.chat.completions.create({
         model: 'gpt-4o', // Use GPT-4 for best logical reasoning
         messages: [{ role: 'user', content: outlinePrompt }],
-        max_tokens: 8000, // Increased for detailed outlines
+        max_tokens: 5000, // Optimized for reliable performance
         temperature: 0.4, // Slightly higher for creative detail while maintaining structure
       });
 
@@ -395,10 +395,16 @@ Write the complete chapter now. Do not include chapter headers or numbering - ju
 
     const { title, genre, subgenre, genreInstructions, wordCount, chapters, targetChapterLength, synopsis, fictionLength } = storyData;
 
+    // Truncate extremely long premises to prevent token overflow
+    const maxPremiseLength = 15000; // characters
+    const truncatedSynopsis = synopsis.length > maxPremiseLength 
+      ? synopsis.substring(0, maxPremiseLength) + "...\n[Premise truncated for processing efficiency]"
+      : synopsis;
+
     const enhancedOutlinePrompt = `You are a master storyteller working with an exceptionally detailed and rich premise. The author has provided comprehensive world-building, character development, and thematic elements. Your task is to create chapter outlines that honor this depth while providing the specific detail needed for ${targetChapterLength}-word chapters.
 
 AUTHOR'S DETAILED PREMISE:
-${synopsis}
+${truncatedSynopsis}
 
 STORY SPECIFICATIONS:
 - Title: ${title}
@@ -447,7 +453,7 @@ Remember: You are adapting the author's rich, detailed vision - not creating a g
       const response = await this.openai.chat.completions.create({
         model: 'gpt-4o', // Use GPT-4 for best logical reasoning
         messages: [{ role: 'user', content: enhancedOutlinePrompt }],
-        max_tokens: 10000, // Extra tokens for detailed premise outlines
+        max_tokens: 6000, // Optimized for detailed outlines without timeouts
         temperature: 0.35, // Balanced for detail and creativity while respecting premise
       });
 
