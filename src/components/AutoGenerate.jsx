@@ -459,6 +459,153 @@ const AutoGenerate = ({ conflictData, apiConfig, onSuccess, onError, onNotificat
         timestamp: new Date().toISOString()
       };
 
+      // Check generation mode and use appropriate approach
+      if (generationMode === 'stream') {
+        addLog('🎥 Starting live streaming generation...', 'info');
+        await startStreamingGeneration(storyData);
+      } else {
+        await startBatchGeneration(storyData);
+      }
+
+    } catch (error) {
+      console.error('Generation start error:', error);
+      setError(error);
+      setIsGenerating(false);
+      setGenerationPhase('outline');
+      
+      if (error.name === 'AbortError') {
+        addLog('Generation was cancelled', 'warning');
+        onNotification('Generation cancelled', 'warning');
+      } else {
+        addLog(`Error starting generation: ${error.message}`, 'error');
+        onError(error);
+      }
+    }
+  };
+
+  // NEW: Streaming generation function
+  const startStreamingGeneration = async (storyData) => {
+    try {
+      // Step 1: Generate outline
+      addLog('📝 Step 1: Generating outline...', 'info');
+      setProgress(10);
+      
+      const outlineResponse = await apiService.generateSimpleOutlineNew(storyData.synopsis, {
+        genre: storyData.genre || 'fantasy',
+        wordCount: storyData.wordCount || 50000,
+        chapterCount: calculatedChapters
+      });
+      
+      if (!outlineResponse.success || !outlineResponse.outline) {
+        throw new Error('Failed to generate outline');
+      }
+      
+      addLog(`✅ Outline generated with ${outlineResponse.outline.length} chapters`, 'success');
+      setOutline(outlineResponse.outline);
+      setProgress(20);
+      
+      // Step 2: Start streaming generation
+      addLog('🎥 Step 2: Starting live chapter generation...', 'info');
+      
+      const streamResponse = await apiService.startStreamingGeneration(outlineResponse.outline, {
+        genre: storyData.genre || 'fantasy',
+        wordCount: storyData.wordCount || 50000,
+        premise: storyData.synopsis
+      });
+      
+      if (!streamResponse.success) {
+        throw new Error('Failed to start streaming');
+      }
+      
+      addLog(`🎬 Live stream started! Watch your novel being written...`, 'success');
+      
+      // Connect to stream
+      const eventSource = apiService.createChapterStream(streamResponse.streamId);
+      const chapters = [];
+      
+      eventSource.onmessage = (event) => {
+        try {
+          const data = JSON.parse(event.data);
+          handleLiveStreamEvent(data, chapters);
+        } catch (error) {
+          console.error('Stream event parsing error:', error);
+        }
+      };
+      
+      eventSource.onerror = (error) => {
+        console.error('Stream error:', error);
+        addLog('❌ Live stream error - check connection', 'error');
+        eventSource.close();
+      };
+      
+      // Store reference for cleanup
+      abortControllerRef.current = { abort: () => eventSource.close() };
+      
+    } catch (error) {
+      throw error;
+    }
+  };
+
+  // Handle streaming events
+  const handleLiveStreamEvent = (data, chapters) => {
+    switch (data.type) {
+      case 'connected':
+        addLog(`🔗 Connected to live stream`, 'success');
+        break;
+        
+      case 'chapter_start':
+        addLog(`🖋️ Writing Chapter ${data.chapterNumber}: ${data.chapterTitle}...`, 'info');
+        setProgress(20 + (data.progress * 0.7)); // 20-90% range
+        break;
+        
+      case 'chapter_complete':
+        const chapter = {
+          ...data.chapter,
+          number: data.chapterNumber,
+          title: data.chapterTitle
+        };
+        chapters.push(chapter);
+        
+        addLog(`✅ Chapter ${data.chapterNumber} completed! (${data.wordCount} words)`, 'success');
+        setProgress(20 + (data.progress * 0.7));
+        
+        // Update result with current chapters
+        const currentResult = {
+          outline: outline,
+          chapters: [...chapters],
+          stats: {
+            totalWords: chapters.reduce((sum, ch) => sum + (ch.wordCount || 0), 0),
+            chapterCount: chapters.length
+          }
+        };
+        setResult(currentResult);
+        break;
+        
+      case 'chapter_error':
+        addLog(`❌ Error in Chapter ${data.chapterNumber}: ${data.error}`, 'error');
+        break;
+        
+      case 'complete':
+        addLog(`🎉 Live generation complete! ${data.totalChapters} chapters, ${data.totalWords} words`, 'success');
+        setProgress(100);
+        setIsGenerating(false);
+        onSuccess(result);
+        break;
+        
+      case 'error':
+        addLog(`❌ Stream error: ${data.message}`, 'error');
+        setError(new Error(data.message));
+        setIsGenerating(false);
+        break;
+        
+      default:
+        console.log('Unknown stream event:', data);
+    }
+  };
+
+  // Existing batch generation (renamed)
+  const startBatchGeneration = async (storyData) => {
+    try {
       // Use incremental generation approach to avoid timeouts
       addLog('📝 Step 1: Generating outline...', 'info');
       setProgress(10);
@@ -560,20 +707,9 @@ const AutoGenerate = ({ conflictData, apiConfig, onSuccess, onError, onNotificat
       } else {
         throw new Error('Invalid response from simple generation');
       }
-
-    } catch (error) {
-      console.error('Generation start error:', error);
-      setError(error);
-      setIsGenerating(false);
-      setGenerationPhase('outline');
       
-      if (error.name === 'AbortError') {
-        addLog('Generation was cancelled', 'warning');
-        onNotification('Generation cancelled', 'warning');
-      } else {
-        addLog(`Error starting generation: ${error.message}`, 'error');
-        onError(error);
-      }
+    } catch (error) {
+      throw error; // Re-throw to be handled by main function
     }
   };
 

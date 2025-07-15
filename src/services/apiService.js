@@ -296,6 +296,35 @@ class APIService {
       signal
     });
   }
+
+  // NEW: Live streaming chapter generation
+  async startStreamingGeneration(outline, settings = {}) {
+    console.log(`🎥 Starting streaming generation for ${outline.length} chapters...`);
+    
+    const response = await this.makeRequest('/simple-generate-new/stream-start', {
+      method: 'POST',
+      body: JSON.stringify({ 
+        outline, 
+        settings,
+        timestamp: new Date().toISOString()
+      }),
+      timeout: 10000 // 10 seconds to start the stream
+    });
+    
+    return response;
+  }
+
+  // Create streaming connection for chapter generation
+  createChapterStream(streamId) {
+    const url = `${this.config.baseUrl}/simple-generate-new/stream/${streamId}`;
+    console.log(`🎥 Creating chapter stream: ${url}`);
+    
+    const eventSource = new EventSource(url, {
+      withCredentials: true
+    });
+    
+    return eventSource;
+  }
 }
 
 // =====================================================================
