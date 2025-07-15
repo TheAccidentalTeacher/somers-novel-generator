@@ -459,44 +459,34 @@ const AutoGenerate = ({ conflictData, apiConfig, onSuccess, onError, onNotificat
         timestamp: new Date().toISOString()
       };
 
-      // Choose endpoint and make request based on generation mode
+      // Use the new simple generation system
       let data;
       if (generationMode === 'stream') {
-        // For streaming, we'll still need to handle this differently
-        const response = await fetch(`${apiConfig.baseUrl}/advancedStreamGeneration`, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify(requestData),
-          signal: abortControllerRef.current.signal
+        // For now, use batch mode since streaming is not implemented in simple system
+        console.log('⚠️ Streaming mode not available in simple system, using batch mode');
+        data = await apiService.generateSimpleNovel(storyData.synopsis, {
+          genre: storyData.genre || 'fantasy',
+          wordCount: storyData.wordCount || 50000,
+          chapterCount: calculatedChapters
         });
-
-        if (!response.ok) {
-          const errorData = await response.json().catch(() => ({}));
-          throw new Error(errorData.error || `HTTP ${response.status}: ${response.statusText}`);
-        }
-
-        data = await response.json();
       } else {
-        // Use the API service for non-streaming requests
-        data = await apiService.advancedGeneration(requestData);
+        // Batch mode using simple generation
+        data = await apiService.generateSimpleNovel(storyData.synopsis, {
+          genre: storyData.genre || 'fantasy',
+          wordCount: storyData.wordCount || 50000,
+          chapterCount: calculatedChapters
+        });
       }
       
-      if (!data.success) {
-        throw new Error(data.error || 'Failed to start generation');
-      }
-
-      if (generationMode === 'stream') {
-        // Handle streaming mode
-        setJobId(data.streamId);
-        addLog(`Advanced streaming generation started with ID: ${data.streamId}`, 'success');
-        startAdvancedStreaming(data.streamId);
+      // Handle the response from simple generation
+      if (data && data.outline && data.chapters) {
+        addLog(`✅ Novel generation completed! Generated ${data.chapters.length} chapters`, 'success');
+        setResult(data);
+        setProgress(100);
+        setIsGenerating(false);
+        onSuccess(data);
       } else {
-        // Handle batch mode
-        setJobId(data.jobId);
-        addLog(`Advanced generation job started with ID: ${data.jobId}`, 'success');
-        startAdvancedPolling(data.jobId);
+        throw new Error('Invalid response from simple generation');
       }
 
     } catch (error) {
