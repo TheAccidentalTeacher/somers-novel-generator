@@ -21,10 +21,15 @@ const limiter = rateLimit({
 });
 app.use(limiter);
 
-// CORS configuration
+// CORS configuration - FIXED for Netlify
 app.use(cors({
-  origin: process.env.CORS_ORIGIN || 'http://localhost:3000',
-  credentials: true
+  origin: 'https://somers-novel-writer.netlify.app',
+  credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS', 'PATCH'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'Accept', 'Origin', 'X-Requested-With'],
+  exposedHeaders: ['Content-Length', 'Content-Range'],
+  maxAge: 86400, // 24 hours
+  optionsSuccessStatus: 200
 }));
 
 // Body parsing middleware
@@ -47,9 +52,51 @@ app.get('/api', (req, res) => {
     endpoints: {
       health: '/health',
       api: '/api',
+      createOutline: '/api/createOutline',
       advanced: '/api/advanced/*'
     }
   });
+});
+
+// ADD MISSING ENDPOINT - /api/createOutline
+app.post('/api/createOutline', async (req, res) => {
+  try {
+    console.log('📝 CREATE OUTLINE REQUEST:', req.body);
+    
+    const { title, genre, wordCount, chapters } = req.body;
+    
+    // Basic validation
+    if (!title || !genre || !wordCount || !chapters) {
+      return res.status(400).json({
+        success: false,
+        error: 'Missing required fields: title, genre, wordCount, chapters'
+      });
+    }
+    
+    // Mock response for now - replace with actual AI logic later
+    const outline = {
+      title,
+      genre,
+      wordCount: parseInt(wordCount),
+      chapters: parseInt(chapters),
+      outline: `This is a ${genre} novel titled "${title}" with ${chapters} chapters and approximately ${wordCount} words.`,
+      timestamp: new Date().toISOString()
+    };
+    
+    console.log('✅ OUTLINE CREATED:', outline);
+    
+    res.json({
+      success: true,
+      data: outline
+    });
+    
+  } catch (error) {
+    console.error('❌ CREATE OUTLINE ERROR:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to create outline'
+    });
+  }
 });
 
 // Import and use advanced generation routes
