@@ -153,12 +153,14 @@ router.post('/stream-start', async (req, res) => {
 router.get('/stream/:streamId', async (req, res) => {
   const { streamId } = req.params;
   
-  // Set up SSE headers
+  // Set up SSE headers with proper CORS for credentials
+  const origin = req.headers.origin || 'https://somers-novel-writer.netlify.app';
   res.writeHead(200, {
     'Content-Type': 'text/event-stream',
     'Cache-Control': 'no-cache',
     'Connection': 'keep-alive',
-    'Access-Control-Allow-Origin': '*',
+    'Access-Control-Allow-Origin': origin, // Specific origin instead of wildcard
+    'Access-Control-Allow-Credentials': 'true',
     'Access-Control-Allow-Headers': 'Cache-Control'
   });
   

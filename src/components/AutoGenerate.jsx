@@ -534,8 +534,15 @@ const AutoGenerate = ({ conflictData, apiConfig, onSuccess, onError, onNotificat
       
       eventSource.onerror = (error) => {
         console.error('Stream error:', error);
-        addLog('❌ Live stream error - check connection', 'error');
+        addLog('❌ Live stream connection failed - falling back to batch mode', 'warning');
         eventSource.close();
+        
+        // Fallback to batch generation
+        addLog('🔄 Switching to batch generation mode...', 'info');
+        startBatchGeneration(storyData).catch(fallbackError => {
+          console.error('Fallback generation error:', fallbackError);
+          throw fallbackError;
+        });
       };
       
       // Store reference for cleanup

@@ -319,9 +319,8 @@ class APIService {
     const url = `${this.config.baseUrl}/simple-generate-new/stream/${streamId}`;
     console.log(`🎥 Creating chapter stream: ${url}`);
     
-    const eventSource = new EventSource(url, {
-      withCredentials: true
-    });
+    // Don't use credentials for EventSource to avoid CORS issues
+    const eventSource = new EventSource(url);
     
     return eventSource;
   }
