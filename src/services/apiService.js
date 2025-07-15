@@ -1,5 +1,5 @@
 // =====================================================================
-// BULLETPROOF API SERVICE
+// BULLETPROOF API SERVICE - v3.2 (Railway URL Fixed)
 // =====================================================================
 // Completely rewritten from scratch to work perfectly with the new CORS setup
 
