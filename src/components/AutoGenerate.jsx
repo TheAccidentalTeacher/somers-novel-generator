@@ -459,24 +459,76 @@ const AutoGenerate = ({ conflictData, apiConfig, onSuccess, onError, onNotificat
         timestamp: new Date().toISOString()
       };
 
-      // Use the new simple generation system
-      let data;
-      if (generationMode === 'stream') {
-        // For now, use batch mode since streaming is not implemented in simple system
-        console.log('⚠️ Streaming mode not available in simple system, using batch mode');
-        data = await apiService.generateSimpleNovel(storyData.synopsis, {
-          genre: storyData.genre || 'fantasy',
-          wordCount: storyData.wordCount || 50000,
-          chapterCount: calculatedChapters
-        }); // Temporarily remove signal to test
-      } else {
-        // Batch mode using simple generation
-        data = await apiService.generateSimpleNovel(storyData.synopsis, {
-          genre: storyData.genre || 'fantasy',
-          wordCount: storyData.wordCount || 50000,
-          chapterCount: calculatedChapters
-        }); // Temporarily remove signal to test
+      // Use incremental generation approach to avoid timeouts
+      addLog('📝 Step 1: Generating outline...', 'info');
+      setProgress(10);
+      
+      // First, generate the outline (this works and is fast)
+      const outlineResponse = await apiService.generateSimpleOutlineNew(storyData.synopsis, {
+        genre: storyData.genre || 'fantasy',
+        wordCount: storyData.wordCount || 50000,
+        chapterCount: calculatedChapters
+      });
+      
+      if (!outlineResponse.success || !outlineResponse.outline) {
+        throw new Error('Failed to generate outline');
       }
+      
+      addLog(`✅ Outline generated with ${outlineResponse.outline.length} chapters`, 'success');
+      setProgress(20);
+      
+      // Now generate chapters individually to avoid timeouts
+      addLog('📚 Step 2: Generating chapters...', 'info');
+      const chapters = [];
+      const totalChapters = outlineResponse.outline.length;
+      
+      for (let i = 0; i < totalChapters; i++) {
+        const chapterOutline = outlineResponse.outline[i];
+        addLog(`Writing Chapter ${i + 1}: ${chapterOutline.title}...`, 'info');
+        
+        try {
+          // Generate individual chapter with shorter timeout
+          const chapterResponse = await apiService.makeRequest('/simple-generate-new/chapter', {
+            method: 'POST',
+            body: JSON.stringify({
+              chapterOutline,
+              context: {
+                previousChapters: chapters,
+                fullPremise: storyData.synopsis,
+                genre: storyData.genre || 'fantasy'
+              }
+            }),
+            timeout: 60000 // 1 minute per chapter - much safer
+          });
+          
+          if (chapterResponse.success && chapterResponse.chapter) {
+            chapters.push(chapterResponse.chapter);
+            const progressPercent = 20 + Math.round((i + 1) / totalChapters * 70); // 20-90%
+            setProgress(progressPercent);
+            addLog(`✅ Chapter ${i + 1} completed (${chapterResponse.chapter.wordCount} words)`, 'success');
+          } else {
+            throw new Error(`Failed to generate chapter ${i + 1}`);
+          }
+          
+        } catch (chapterError) {
+          addLog(`❌ Error generating chapter ${i + 1}: ${chapterError.message}`, 'error');
+          // Continue with remaining chapters rather than failing completely
+        }
+      }
+      
+      // Compile final result
+      addLog('📖 Step 3: Compiling final novel...', 'info');
+      setProgress(95);
+      
+      const data = {
+        outline: outlineResponse.outline,
+        chapters: chapters,
+        fullNovel: chapters.map(ch => ch.content).join('\n\n'),
+        stats: {
+          totalWords: chapters.reduce((sum, ch) => sum + (ch.wordCount || 0), 0),
+          chapterCount: chapters.length
+        }
+      };
       
       // Handle the response from simple generation
       if (data && data.outline && data.chapters) {
