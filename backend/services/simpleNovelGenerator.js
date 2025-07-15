@@ -8,7 +8,19 @@ import OpenAI from 'openai';
  */
 class SimpleNovelGenerator {
   constructor() {
-    this.openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+    // Don't initialize OpenAI client immediately - do it lazily when needed
+    this.openai = null;
+  }
+
+  // Lazy initialization of OpenAI client
+  getOpenAIClient() {
+    if (!this.openai) {
+      if (!process.env.OPENAI_API_KEY) {
+        throw new Error('OpenAI API key is not configured. Please set OPENAI_API_KEY environment variable.');
+      }
+      this.openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+    }
+    return this.openai;
   }
 
   /**
@@ -34,7 +46,7 @@ Make it ${wordCount} words total. Return as JSON:
 [{"number": 1, "title": "Chapter Name", "summary": "What happens", "wordTarget": ${Math.round(wordCount/chapterCount)}}]`;
 
     try {
-      const response = await this.openai.chat.completions.create({
+      const response = await this.getOpenAIClient().chat.completions.create({
         model: 'gpt-4o-mini', // CHEAP model for outlining - just structure
         messages: [{ role: 'user', content: prompt }],
         max_tokens: 1500, 
@@ -78,7 +90,7 @@ Chapter goal: ${chapterOutline.summary}
 Write about ${chapterOutline.wordTarget} words. Just write the chapter.`;
 
     try {
-      const response = await this.openai.chat.completions.create({
+      const response = await this.getOpenAIClient().chat.completions.create({
         model: 'gpt-4o', // PREMIUM model for actual writing - best quality
         messages: [{ role: 'user', content: prompt }],
         max_tokens: 4000, // More tokens for detailed chapter writing
