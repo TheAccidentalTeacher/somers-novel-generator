@@ -80,19 +80,17 @@ class APIService {
         console.log(`🚀 API Request [Attempt ${attempt + 1}]: ${method} ${url}`);
         
         // Create abort controller for timeout, but respect external signal
-        let controller;
         if (signal) {
           // If external signal is already aborted, don't even start the request
           if (signal.aborted) {
             throw new DOMException('Request was aborted', 'AbortError');
           }
-          controller = signal;
+          requestConfig.signal = signal;
         } else {
-          controller = new AbortController();
+          const controller = new AbortController();
           timeoutId = setTimeout(() => controller.abort(), timeout);
+          requestConfig.signal = controller.signal;
         }
-        
-        requestConfig.signal = controller;
 
         const response = await fetch(url, requestConfig);
         clearTimeout(timeoutId);
