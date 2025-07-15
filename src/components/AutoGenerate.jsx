@@ -498,14 +498,21 @@ const AutoGenerate = ({ conflictData, apiConfig, onSuccess, onError, onNotificat
                 genre: storyData.genre || 'fantasy'
               }
             }),
-            timeout: 60000 // 1 minute per chapter - much safer
+            timeout: 120000 // 2 minutes per chapter for more complex chapters
           });
           
           if (chapterResponse.success && chapterResponse.chapter) {
-            chapters.push(chapterResponse.chapter);
+            // Ensure proper chapter numbering and ordering
+            const chapter = {
+              ...chapterResponse.chapter,
+              number: i + 1,
+              title: chapterResponse.chapter.title || `Chapter ${i + 1}`,
+              chapterIndex: i
+            };
+            chapters.push(chapter);
             const progressPercent = 20 + Math.round((i + 1) / totalChapters * 70); // 20-90%
             setProgress(progressPercent);
-            addLog(`✅ Chapter ${i + 1} completed (${chapterResponse.chapter.wordCount} words)`, 'success');
+            addLog(`✅ Chapter ${i + 1} completed (${chapter.wordCount || 'unknown'} words)`, 'success');
           } else {
             throw new Error(`Failed to generate chapter ${i + 1}`);
           }
@@ -516,17 +523,30 @@ const AutoGenerate = ({ conflictData, apiConfig, onSuccess, onError, onNotificat
         }
       }
       
-      // Compile final result
+      // Compile final result with better formatting
       addLog('📖 Step 3: Compiling final novel...', 'info');
       setProgress(95);
+      
+      // Sort chapters by number to ensure correct order
+      chapters.sort((a, b) => (a.number || 0) - (b.number || 0));
+      
+      // Create full novel text with proper formatting
+      const fullNovelText = chapters
+        .map(ch => {
+          const chapterTitle = ch.title || `Chapter ${ch.number || 'Unknown'}`;
+          const chapterContent = ch.content || ch.text || '';
+          return `# ${chapterTitle}\n\n${chapterContent}`;
+        })
+        .join('\n\n---\n\n');
       
       const data = {
         outline: outlineResponse.outline,
         chapters: chapters,
-        fullNovel: chapters.map(ch => ch.content).join('\n\n'),
+        fullNovel: fullNovelText,
         stats: {
           totalWords: chapters.reduce((sum, ch) => sum + (ch.wordCount || 0), 0),
-          chapterCount: chapters.length
+          chapterCount: chapters.length,
+          successfulChapters: chapters.filter(ch => ch.content || ch.text).length
         }
       };
       
@@ -955,20 +975,40 @@ const AutoGenerate = ({ conflictData, apiConfig, onSuccess, onError, onNotificat
   const downloadFullNovel = () => {
     if (!result) return;
 
-    let content = `${result.title}\n`;
-    content += `by ${result.author || 'Anonymous'}\n\n`;
-    content += `${result.description}\n\n`;
+    // Handle both old and new result formats
+    const title = result.title || storySetup.title || 'Generated Novel';
+    const author = result.author || 'AI Generated';
+    
+    let content = `${title}\n`;
+    content += `by ${author}\n\n`;
+    
+    // Add stats
+    if (result.stats) {
+      content += `Total Words: ${result.stats.totalWords || 'Unknown'}\n`;
+      content += `Chapters: ${result.stats.chapterCount || 'Unknown'}\n\n`;
+    }
+    
     content += '='.repeat(50) + '\n\n';
 
     if (result.chapters && result.chapters.length > 0) {
-      result.chapters.forEach((chapter, index) => {
-        content += `CHAPTER ${index + 1}: ${chapter.title}\n\n`;
-        content += chapter.content + '\n\n';
+      // Sort chapters by number to ensure correct order
+      const sortedChapters = [...result.chapters].sort((a, b) => (a.number || 0) - (b.number || 0));
+      
+      sortedChapters.forEach((chapter) => {
+        const chapterNum = chapter.number || chapter.chapterIndex + 1 || 'Unknown';
+        const chapterTitle = chapter.title || `Chapter ${chapterNum}`;
+        const chapterContent = chapter.content || chapter.text || 'No content available';
+        
+        content += `CHAPTER ${chapterNum}: ${chapterTitle}\n\n`;
+        content += chapterContent + '\n\n';
         content += '-'.repeat(30) + '\n\n';
       });
+    } else if (result.fullNovel) {
+      // Fallback to full novel text if chapters aren't available
+      content += result.fullNovel;
     }
 
-    const filename = `${result.title.replace(/[^a-z0-9]/gi, '_').toLowerCase()}_novel.txt`;
+    const filename = `${title.replace(/[^a-z0-9]/gi, '_').toLowerCase()}_novel.txt`;
     handleDownload(content, filename);
   };
 
@@ -1046,19 +1086,23 @@ const AutoGenerate = ({ conflictData, apiConfig, onSuccess, onError, onNotificat
             {result.chapters?.map((chapter, index) => (
               <div key={index} className="chapter-item auto-generated">
                 <div className="chapter-header">
-                  <h4>Chapter {index + 1}: {chapter.title}</h4>
+                  <h4>Chapter {chapter.number || index + 1}: {chapter.title || `Chapter ${index + 1}`}</h4>
                   <div className="chapter-meta">
-                    <span className="word-count">{chapter.wordCount} words</span>
+                    <span className="word-count">{chapter.wordCount || 'Unknown'} words</span>
                     <button 
                       className="btn btn-small"
-                      onClick={() => handleDownload(chapter.content, `chapter_${index + 1}.txt`)}
+                      onClick={() => {
+                        const content = chapter.content || chapter.text || 'No content available';
+                        const filename = `chapter_${chapter.number || index + 1}_${(chapter.title || '').replace(/[^a-z0-9]/gi, '_').toLowerCase()}.txt`;
+                        handleDownload(content, filename);
+                      }}
                     >
                       📄 Download
                     </button>
                   </div>
                 </div>
                 <div className="chapter-preview">
-                  {chapter.content.substring(0, 300)}...
+                  {(chapter.content || chapter.text || 'No content available').substring(0, 300)}...
                 </div>
               </div>
             ))}
