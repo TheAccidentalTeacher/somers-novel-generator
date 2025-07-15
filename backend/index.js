@@ -28,29 +28,144 @@ app.use(helmet({
   },
 }));
 
-// CORS configuration
-const allowedOrigins = [
-  'http://localhost:5173',
-  'http://localhost:5174',
-  'https://somers-novel-writer.netlify.app'
-];
+// =====================================================================
+// BULLETPROOF CORS CONFIGURATION
+// =====================================================================
+// Completely rewritten from scratch for maximum reliability and security
 
-const corsOptions = {
-  origin: function (origin, callback) {
-    if (!origin || allowedOrigins.includes(origin)) {
-      callback(null, true);
-    } else if (/\.netlify\.app$/.test(origin)) {
-      callback(null, true);
-    } else {
-      callback(new Error('Not allowed by CORS'));
-    }
-  },
-  credentials: true,
-  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization', 'Accept']
-};
+class CORSManager {
+  constructor() {
+    this.isDevelopment = process.env.NODE_ENV !== 'production';
+    this.productionDomains = new Set([
+      'https://somers-novel-writer.netlify.app'
+    ]);
+    
+    this.developmentDomains = new Set([
+      'http://localhost:5173',
+      'http://localhost:5174', 
+      'http://localhost:3000',
+      'http://localhost:4173',
+      'http://127.0.0.1:5173',
+      'http://127.0.0.1:5174',
+      'http://127.0.0.1:3000',
+      'http://127.0.0.1:4173'
+    ]);
+  }
+
+  isValidOrigin(origin) {
+    // No origin means same-origin or tools like Postman/curl
+    if (!origin) return true;
+
+    // Production domains (exact match)
+    if (this.productionDomains.has(origin)) return true;
+
+    // Development domains (exact match)
+    if (this.developmentDomains.has(origin)) return true;
+
+    // Netlify preview/branch deploys (secure pattern matching)
+    if (this.isValidNetlifyDomain(origin)) return true;
+
+    // Development localhost with any port (secure pattern)
+    if (this.isDevelopment && this.isValidDevelopmentDomain(origin)) return true;
+
+    return false;
+  }
+
+  isValidNetlifyDomain(origin) {
+    // Strict Netlify domain validation
+    const netlifyPattern = /^https:\/\/[a-zA-Z0-9]([a-zA-Z0-9\-]{0,61}[a-zA-Z0-9])?--[a-zA-Z0-9]([a-zA-Z0-9\-]{0,61}[a-zA-Z0-9])?\.netlify\.app$/;
+    const mainNetlifyPattern = /^https:\/\/[a-zA-Z0-9]([a-zA-Z0-9\-]{0,61}[a-zA-Z0-9])?\.netlify\.app$/;
+    
+    return netlifyPattern.test(origin) || mainNetlifyPattern.test(origin);
+  }
+
+  isValidDevelopmentDomain(origin) {
+    // Only allow localhost and 127.0.0.1 with ports 3000-9999
+    const devPattern = /^https?:\/\/(localhost|127\.0\.0\.1):[3-9]\d{3}$/;
+    return devPattern.test(origin);
+  }
+
+  getCORSOptions() {
+    return {
+      origin: (origin, callback) => {
+        const isValid = this.isValidOrigin(origin);
+        
+        if (isValid) {
+          console.log(`✅ CORS: Allowed origin: ${origin || 'same-origin'}`);
+          callback(null, true);
+        } else {
+          console.error(`❌ CORS: Blocked origin: ${origin}`);
+          callback(new Error(`CORS policy violation: Origin ${origin} is not allowed`), false);
+        }
+      },
+      
+      credentials: true,
+      
+      methods: [
+        'GET', 
+        'POST', 
+        'PUT', 
+        'DELETE', 
+        'OPTIONS', 
+        'PATCH', 
+        'HEAD'
+      ],
+      
+      allowedHeaders: [
+        'Accept',
+        'Accept-Language',
+        'Content-Language',
+        'Content-Type',
+        'Authorization',
+        'X-Requested-With',
+        'Origin',
+        'Cache-Control',
+        'Pragma'
+      ],
+      
+      exposedHeaders: [
+        'Content-Length',
+        'Content-Range',
+        'X-Content-Range'
+      ],
+      
+      maxAge: 86400, // 24 hours
+      
+      optionsSuccessStatus: 200 // For legacy browser support
+    };
+  }
+}
+
+// Initialize CORS manager
+const corsManager = new CORSManager();
+const corsOptions = corsManager.getCORSOptions();
 
 app.use(cors(corsOptions));
+
+// =====================================================================
+// ADDITIONAL CORS PREFLIGHT HANDLER
+// =====================================================================
+// Handle complex preflight requests that might not be caught by standard CORS
+app.use((req, res, next) => {
+  const origin = req.headers.origin;
+  
+  // Set CORS headers for all requests
+  if (corsManager.isValidOrigin(origin)) {
+    res.header('Access-Control-Allow-Origin', origin);
+    res.header('Access-Control-Allow-Credentials', 'true');
+    res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS, PATCH, HEAD');
+    res.header('Access-Control-Allow-Headers', 'Accept, Accept-Language, Content-Language, Content-Type, Authorization, X-Requested-With, Origin, Cache-Control, Pragma');
+    res.header('Access-Control-Max-Age', '86400');
+  }
+  
+  // Handle preflight OPTIONS requests
+  if (req.method === 'OPTIONS') {
+    console.log(`🔄 CORS: Preflight request from ${origin || 'same-origin'}`);
+    return res.status(200).end();
+  }
+  
+  next();
+});
 
 // Rate limiting
 const limiter = rateLimit({

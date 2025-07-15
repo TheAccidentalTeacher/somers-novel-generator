@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import LoadingSpinner from './LoadingSpinner';
+import apiService from '../services/apiService.js';
 import './AutoGenerate.css';
 
 // Advanced Novel Generator v2.0 - Updated 2025-07-14

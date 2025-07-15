@@ -7,6 +7,7 @@ import ProjectSettings from './components/ProjectSettings';
 import ErrorFallback from './components/ErrorFallback';
 import LoadingSpinner from './components/LoadingSpinner';
 import NotificationSystem from './components/NotificationSystem';
+import apiService from './services/apiService.js';
 import './App.css';
 
 const TABS = {
@@ -21,16 +22,27 @@ function App() {
   const [conflictData, setConflictData] = useState(null);
   const [isLoading, setIsLoading] = useState(false);
   const [notifications, setNotifications] = useState([]);
-  const [apiConfig, setApiConfig] = useState({
-    baseUrl: import.meta.env.VITE_API_BASE_URL || 'http://localhost:3000/api',
-    timeout: 30000
+  const [apiConfig, setApiConfig] = useState(() => {
+    // Initialize API config from localStorage or defaults
+    const savedBaseUrl = localStorage.getItem('api_base_url');
+    const savedTimeout = localStorage.getItem('api_timeout');
+    
+    const config = {
+      baseUrl: savedBaseUrl || apiService.getConfig().baseUrl,
+      timeout: savedTimeout ? parseInt(savedTimeout) : apiService.getConfig().timeout
+    };
+    
+    // Update API service with saved config
+    apiService.updateConfig(config);
+    
+    return config;
   });
 
-  // Backend health check function
+  // Backend health check function using the new API service
   const checkBackendHealth = async () => {
     try {
-      const response = await fetch(`${apiConfig.baseUrl.replace('/api', '')}/health`);
-      return response.ok;
+      await apiService.checkHealth();
+      return true;
     } catch (error) {
       console.error('Backend health check failed:', error);
       return false;
@@ -38,8 +50,26 @@ function App() {
   };
 
   useEffect(() => {
-    // App initialized
+    // App initialized - perform any startup checks
+    checkBackendHealth().then(isHealthy => {
+      if (!isHealthy) {
+        addNotification('Backend connection check failed. Please verify your API settings.', 'warning');
+      }
+    });
   }, []);
+
+  // Handle API configuration changes
+  const handleConfigChange = (newConfig) => {
+    // Update local state
+    setApiConfig(newConfig);
+    
+    // Update API service
+    apiService.updateConfig(newConfig);
+    
+    // Save to localStorage (already done in ProjectSettings, but good to be explicit)
+    localStorage.setItem('api_base_url', newConfig.baseUrl);
+    localStorage.setItem('api_timeout', newConfig.timeout.toString());
+  };
 
   const addNotification = (message, type = 'info', duration = 5000) => {
     const id = Date.now() + Math.random();
@@ -137,7 +167,7 @@ function App() {
         return (
           <ProjectSettings
             apiConfig={apiConfig}
-            onConfigChange={setApiConfig}
+            onConfigChange={handleConfigChange}
             onTestConnection={checkBackendHealth}
             onNotification={addNotification}
           />

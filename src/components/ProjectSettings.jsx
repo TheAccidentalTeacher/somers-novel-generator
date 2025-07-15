@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import apiService from '../services/apiService.js';
 
 const ProjectSettings = ({ apiConfig, onConfigChange, onTestConnection, onNotification }) => {
   const [localConfig, setLocalConfig] = useState({
@@ -27,6 +28,12 @@ const ProjectSettings = ({ apiConfig, onConfigChange, onTestConnection, onNotifi
     localStorage.setItem('api_base_url', localConfig.baseUrl);
     localStorage.setItem('api_timeout', localConfig.timeout.toString());
 
+    // Update API service configuration
+    apiService.updateConfig({
+      baseUrl: localConfig.baseUrl,
+      timeout: localConfig.timeout
+    });
+
     // Update parent component
     onConfigChange(localConfig);
     onNotification('Settings saved successfully', 'success');
@@ -37,26 +44,26 @@ const ProjectSettings = ({ apiConfig, onConfigChange, onTestConnection, onNotifi
     setConnectionStatus(null);
 
     try {
-      // Test backend connection
-      const response = await fetch(`${localConfig.baseUrl.replace('/api', '')}/health`, {
-        method: 'GET',
+      // Update API service with current config for testing
+      apiService.updateConfig({
+        baseUrl: localConfig.baseUrl,
         timeout: localConfig.timeout
       });
 
-      if (response.ok) {
-        const data = await response.json();
-        setConnectionStatus({
-          backend: 'success',
-          backendMessage: data.message || 'Backend connected successfully',
-          openai: data.openai === 'configured' ? 'success' : 'warning',
-          openaiMessage: data.openai === 'configured' 
-            ? 'OpenAI API configured' 
-            : 'OpenAI API key not configured'
-        });
-        onNotification('Connection test completed', 'success');
-      } else {
-        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
-      }
+      // Test backend connection using the new bulletproof API service
+      const healthData = await apiService.checkHealth();
+      
+      setConnectionStatus({
+        backend: 'success',
+        backendMessage: healthData.message || 'Backend connected successfully',
+        openai: healthData.apis?.openai === 'configured' ? 'success' : 'warning',
+        openaiMessage: healthData.apis?.openai === 'configured' 
+          ? 'OpenAI API configured' 
+          : 'OpenAI API key not configured'
+      });
+      
+      onNotification('Connection test completed successfully', 'success');
+      
     } catch (error) {
       setConnectionStatus({
         backend: 'error',
