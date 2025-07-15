@@ -150,31 +150,6 @@ const corsOptions = corsManager.getCORSOptions();
 
 app.use(cors(corsOptions));
 
-// =====================================================================
-// ADDITIONAL CORS PREFLIGHT HANDLER
-// =====================================================================
-// Handle complex preflight requests that might not be caught by standard CORS
-app.use((req, res, next) => {
-  const origin = req.headers.origin;
-  
-  // Set CORS headers for all requests
-  if (corsManager.isValidOrigin(origin)) {
-    res.header('Access-Control-Allow-Origin', origin);
-    res.header('Access-Control-Allow-Credentials', 'true');
-    res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS, PATCH, HEAD');
-    res.header('Access-Control-Allow-Headers', 'Accept, Accept-Language, Content-Language, Content-Type, Authorization, X-Requested-With, Origin, Cache-Control, Pragma');
-    res.header('Access-Control-Max-Age', '86400');
-  }
-  
-  // Handle preflight OPTIONS requests
-  if (req.method === 'OPTIONS') {
-    console.log(`🔄 CORS: Preflight request from ${origin || 'same-origin'}`);
-    return res.status(200).end();
-  }
-  
-  next();
-});
-
 // Rate limiting
 const limiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes
@@ -202,19 +177,16 @@ app.use('/api', advancedGenerationRouter);
 // Health check endpoint
 app.get('/health', async (req, res) => {
   try {
-    // Check API keys availability
+    // Check only the APIs we actually use
     const apiStatus = {
-      openai: process.env.OPENAI_API_KEY ? 'configured' : 'not configured',
-      azure: process.env.AZURE_AI_FOUNDRY_KEY ? 'configured' : 'not configured',
-      replicate: process.env.REPLICATE_API_TOKEN ? 'configured' : 'not configured',
-      stability: process.env.STABILITY_AI_API_KEY ? 'configured' : 'not configured'
+      openai: process.env.OPENAI_API_KEY ? 'configured' : 'not configured'
     };
     
     res.json({
       status: 'ok',
       timestamp: new Date().toISOString(),
       service: 'somers-novel-generator-backend',
-      version: '1.0.0',
+      version: '2.0.0',
       environment: process.env.NODE_ENV || 'development',
       apis: apiStatus,
       frontend: process.env.FRONTEND_URL || 'not configured',

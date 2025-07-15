@@ -347,6 +347,16 @@ const AutoGenerate = ({ conflictData, apiConfig, onSuccess, onError, onNotificat
     }
   };
 
+  // Update API service when apiConfig changes
+  useEffect(() => {
+    if (apiConfig) {
+      apiService.updateConfig({
+        baseUrl: apiConfig.baseUrl,
+        timeout: apiConfig.timeout || 30000
+      });
+    }
+  }, [apiConfig]);
+
   // Cleanup on unmount
   useEffect(() => {
     return () => {
@@ -426,26 +436,29 @@ const AutoGenerate = ({ conflictData, apiConfig, onSuccess, onError, onNotificat
         timestamp: new Date().toISOString()
       };
 
-      // Choose endpoint based on generation mode
-      const endpoint = generationMode === 'stream' 
-        ? `${apiConfig.baseUrl}/advancedStreamGeneration`
-        : `${apiConfig.baseUrl}/advancedGeneration`;
+      // Choose endpoint and make request based on generation mode
+      let data;
+      if (generationMode === 'stream') {
+        // For streaming, we'll still need to handle this differently
+        const response = await fetch(`${apiConfig.baseUrl}/advancedStreamGeneration`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify(requestData),
+          signal: abortControllerRef.current.signal
+        });
 
-      const response = await fetch(endpoint, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(requestData),
-        signal: abortControllerRef.current.signal
-      });
+        if (!response.ok) {
+          const errorData = await response.json().catch(() => ({}));
+          throw new Error(errorData.error || `HTTP ${response.status}: ${response.statusText}`);
+        }
 
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}));
-        throw new Error(errorData.error || `HTTP ${response.status}: ${response.statusText}`);
+        data = await response.json();
+      } else {
+        // Use the API service for non-streaming requests
+        data = await apiService.advancedGeneration(requestData);
       }
-
-      const data = await response.json();
       
       if (!data.success) {
         throw new Error(data.error || 'Failed to start generation');
@@ -497,23 +510,8 @@ const AutoGenerate = ({ conflictData, apiConfig, onSuccess, onError, onNotificat
 
       setCurrentProcess('Creating detailed story structure...');
 
-      const response = await fetch(`${apiConfig.baseUrl}/createOutline`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(outlineData)
-      });
-
-      if (!response.ok) {
-        throw new Error(`Failed to create outline: ${response.statusText}`);
-      }
-
-      const data = await response.json();
-      
-      if (!data.success) {
-        throw new Error(data.error || 'Failed to create outline');
-      }
+      // Use the API service instead of raw fetch
+      const data = await apiService.createOutline(outlineData);
 
       setOutline(data.outline);
       setCurrentProcess('');
@@ -716,18 +714,9 @@ const AutoGenerate = ({ conflictData, apiConfig, onSuccess, onError, onNotificat
   const startPolling = (id) => {
     intervalRef.current = setInterval(async () => {
       try {
-        const response = await fetch(`${apiConfig.baseUrl}/autoGenerateNovel/${id}`);
+        // Use the API service instead of raw fetch
+        const data = await apiService.getGenerationStatus(id);
         
-        if (!response.ok) {
-          throw new Error(`HTTP ${response.status}: ${response.statusText}`);
-        }
-
-        const data = await response.json();
-        
-        if (!data.success) {
-          throw new Error(data.error || 'Failed to get job status');
-        }
-
         const jobStatus = data.job;
         setStatus(jobStatus);
         setProgress(jobStatus.progress || 0);
@@ -770,18 +759,9 @@ const AutoGenerate = ({ conflictData, apiConfig, onSuccess, onError, onNotificat
   const startAdvancedPolling = (jobId) => {
     intervalRef.current = setInterval(async () => {
       try {
-        const response = await fetch(`${apiConfig.baseUrl}/advancedGeneration/${jobId}`);
+        // Use the API service instead of raw fetch
+        const data = await apiService.getGenerationStatus(jobId);
         
-        if (!response.ok) {
-          throw new Error(`HTTP ${response.status}: ${response.statusText}`);
-        }
-
-        const data = await response.json();
-        
-        if (!data.success) {
-          throw new Error(data.error || 'Failed to get job status');
-        }
-
         const jobStatus = data.job;
         setStatus(jobStatus);
         setProgress(jobStatus.progress || 0);
@@ -834,9 +814,8 @@ const AutoGenerate = ({ conflictData, apiConfig, onSuccess, onError, onNotificat
         clearInterval(intervalRef.current);
       }
 
-      await fetch(`${apiConfig.baseUrl}/autoGenerateNovel/${jobId}`, {
-        method: 'DELETE'
-      });
+      // Use the API service instead of raw fetch
+      await apiService.cancelGeneration(jobId);
 
       setIsGenerating(false);
       setJobId(null);

@@ -75,12 +75,13 @@ class APIService {
 
     // Retry logic
     for (let attempt = 0; attempt <= retryAttempts; attempt++) {
+      let timeoutId;
       try {
         console.log(`🚀 API Request [Attempt ${attempt + 1}]: ${method} ${url}`);
         
         // Create abort controller for timeout
         const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), timeout);
+        timeoutId = setTimeout(() => controller.abort(), timeout);
         
         requestConfig.signal = controller.signal;
 
@@ -112,7 +113,7 @@ class APIService {
         }
 
       } catch (error) {
-        clearTimeout(timeoutId);
+        if (timeoutId) clearTimeout(timeoutId);
         
         // Don't retry on client errors (4xx) or final attempt
         if (attempt === retryAttempts || (error.status && error.status >= 400 && error.status < 500)) {
