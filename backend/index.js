@@ -9,7 +9,8 @@ import autoGenerateRouter from './routes/autoGenerate.js';
 import generateNovelRouter from './routes/generateNovel.js';
 import streamGenerationRouter from './routes/streamGeneration.js';
 import advancedGenerationRouter from './routes/advancedGeneration.js';
-import simpleGenerateRouter from './routes/simpleGenerate.js';
+// FIXED: Use the working simple generator
+import simpleGenerateRouter from './routes/simpleGenerateFixed.js';
 // NEW: Simple, clean novel generator
 import simpleGenerateNewRouter from './routes/simpleGenerateNew.js';
 
