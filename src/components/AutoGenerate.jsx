@@ -468,14 +468,14 @@ const AutoGenerate = ({ conflictData, apiConfig, onSuccess, onError, onNotificat
           genre: storyData.genre || 'fantasy',
           wordCount: storyData.wordCount || 50000,
           chapterCount: calculatedChapters
-        });
+        }); // Temporarily remove signal to test
       } else {
         // Batch mode using simple generation
         data = await apiService.generateSimpleNovel(storyData.synopsis, {
           genre: storyData.genre || 'fantasy',
           wordCount: storyData.wordCount || 50000,
           chapterCount: calculatedChapters
-        });
+        }); // Temporarily remove signal to test
       }
       
       // Handle the response from simple generation

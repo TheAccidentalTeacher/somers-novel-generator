@@ -283,10 +283,14 @@ class APIService {
     });
   }
 
-  async generateSimpleNovel(premise, settings = {}) {
+  async generateSimpleNovel(premise, settings = {}, signal = null) {
+    console.log(`🚀 Starting full novel generation (${premise.length} characters)...`);
+    
     return this.makeRequest('/simple-generate-new/full-novel', {
       method: 'POST',
       body: JSON.stringify({ premise, settings }),
+      timeout: 300000, // 5 minutes timeout for full novel generation
+      signal
     });
   }
 }
