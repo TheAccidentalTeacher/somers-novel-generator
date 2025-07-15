@@ -1188,7 +1188,11 @@ const AutoGenerate = ({ conflictData, apiConfig, onSuccess, onError, onNotificat
               {calculatedChapters > 0 && (
                 <div className="setup-section">
                   <h4>📝 Story Synopsis</h4>
-                  <p>Provide a detailed synopsis (up to 10,000 words / 60,000 characters) - the more detail, the better your novel!</p>
+                  <p>
+                    Provide a detailed synopsis. <strong>Recommended: 12K-20K characters (~2,000-3,500 words)</strong> for optimal AI processing.
+                    <br />
+                    <small style={{ color: '#666' }}>Up to 60,000 characters supported, but larger premises may timeout.</small>
+                  </p>
                   
                   <div className="form-group">
                     <textarea
@@ -1207,10 +1211,38 @@ const AutoGenerate = ({ conflictData, apiConfig, onSuccess, onError, onNotificat
                       }}
                     />
                     <div className="character-count">
-                      {storySetup.synopsis.length.toLocaleString()} / 60,000 characters (~{Math.round(storySetup.synopsis.length / 6)} words)
-                      {storySetup.synopsis.length > 50000 && (
-                        <div style={{ color: 'orange', fontSize: '12px', marginTop: '5px' }}>
-                          ⚠️ Very large synopsis detected. If you experience issues, try breaking it into smaller sections.
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                        <span>
+                          {storySetup.synopsis.length.toLocaleString()} / 60,000 characters (~{Math.round(storySetup.synopsis.length / 6)} words)
+                        </span>
+                        <span style={{ 
+                          fontSize: '12px', 
+                          color: storySetup.synopsis.length <= 20000 ? '#22c55e' : 
+                                 storySetup.synopsis.length <= 30000 ? '#f59e0b' : '#ef4444',
+                          fontWeight: 'bold'
+                        }}>
+                          {storySetup.synopsis.length <= 12000 && '✅ Optimal'}
+                          {storySetup.synopsis.length > 12000 && storySetup.synopsis.length <= 20000 && '🎯 Ideal'}
+                          {storySetup.synopsis.length > 20000 && storySetup.synopsis.length <= 30000 && '⚠️ Large'}
+                          {storySetup.synopsis.length > 30000 && '🚨 Very Large'}
+                        </span>
+                      </div>
+                      
+                      {storySetup.synopsis.length > 20000 && storySetup.synopsis.length <= 30000 && (
+                        <div style={{ color: '#f59e0b', fontSize: '12px', marginTop: '5px' }}>
+                          ⚠️ Large premise detected. May take 60-90 seconds to process.
+                        </div>
+                      )}
+                      
+                      {storySetup.synopsis.length > 30000 && (
+                        <div style={{ color: '#ef4444', fontSize: '12px', marginTop: '5px' }}>
+                          🚨 Very large premise. Risk of timeouts. Consider using 20K characters (~3,500 words) for optimal results.
+                        </div>
+                      )}
+                      
+                      {storySetup.synopsis.length <= 20000 && storySetup.synopsis.length > 0 && (
+                        <div style={{ color: '#22c55e', fontSize: '12px', marginTop: '5px' }}>
+                          ✅ Great size! Should process reliably in 30-60 seconds.
                         </div>
                       )}
                     </div>
