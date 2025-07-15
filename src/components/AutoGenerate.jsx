@@ -31,6 +31,7 @@ const AutoGenerate = ({ conflictData, apiConfig, onSuccess, onError, onNotificat
   const [generationPhase, setGenerationPhase] = useState('setup'); // 'setup', 'planning', 'outline', 'generating'
   const [outline, setOutline] = useState([]);
   const [currentProcess, setCurrentProcess] = useState('');
+  const [isCreatingOutline, setIsCreatingOutline] = useState(false);
   
   const [generationMode, setGenerationMode] = useState('batch'); // 'batch' or 'stream'
   
@@ -390,6 +391,19 @@ const AutoGenerate = ({ conflictData, apiConfig, onSuccess, onError, onNotificat
       return;
     }
 
+    // If we're in planning phase and outline is not ready, wait for it
+    if (generationPhase === 'planning' && outline.length === 0) {
+      addLog('Waiting for outline creation to complete...', 'info');
+      return;
+    }
+
+    // If we're in planning phase but outline is ready, move to outline review
+    if (generationPhase === 'planning' && outline.length > 0) {
+      setGenerationPhase('outline');
+      addLog('Outline ready for review', 'success');
+      return;
+    }
+
     // Use either conflictData or storySetup
     const storyData = conflictData || {
       title: storySetup.title,
@@ -493,7 +507,14 @@ const AutoGenerate = ({ conflictData, apiConfig, onSuccess, onError, onNotificat
   };
 
   const createOutline = async () => {
+    // Prevent multiple simultaneous outline creation attempts
+    if (isCreatingOutline) {
+      addLog('Outline creation already in progress...', 'warning');
+      return;
+    }
+
     try {
+      setIsCreatingOutline(true);
       setCurrentProcess('Analyzing your synopsis with GPT-4...');
       
       const outlineData = {
@@ -510,8 +531,16 @@ const AutoGenerate = ({ conflictData, apiConfig, onSuccess, onError, onNotificat
 
       setCurrentProcess('Creating detailed story structure...');
 
-      // Use the API service instead of raw fetch
-      const data = await apiService.createOutline(outlineData);
+      // Create a timeout promise to prevent infinite hanging
+      const timeoutPromise = new Promise((_, reject) => {
+        setTimeout(() => reject(new Error('Outline creation timed out after 2 minutes')), 120000);
+      });
+
+      // Race between API call and timeout
+      const data = await Promise.race([
+        apiService.createOutline(outlineData),
+        timeoutPromise
+      ]);
 
       setOutline(data.outline);
       setCurrentProcess('');
@@ -524,7 +553,10 @@ const AutoGenerate = ({ conflictData, apiConfig, onSuccess, onError, onNotificat
       setError(error);
       setCurrentProcess('');
       setGenerationPhase('setup');
+      addLog(`Outline creation failed: ${error.message}`, 'error');
       onError(error);
+    } finally {
+      setIsCreatingOutline(false);
     }
   };
 
@@ -868,6 +900,10 @@ const AutoGenerate = ({ conflictData, apiConfig, onSuccess, onError, onNotificat
     setResult(null);
     setError(null);
     setLogs([]);
+    setIsCreatingOutline(false);
+    setCurrentProcess('');
+    setGenerationPhase('setup');
+    setOutline([]);
     
     if (intervalRef.current) {
       clearInterval(intervalRef.current);
@@ -1154,10 +1190,15 @@ const AutoGenerate = ({ conflictData, apiConfig, onSuccess, onError, onNotificat
                   <div className="proceed-actions">
                     <button 
                       className="btn btn-primary btn-large"
-                      onClick={() => setGenerationPhase('planning')}
-                      disabled={!storySetup.title || storySetup.synopsis.length < 100}
+                      onClick={async () => {
+                        if (!isCreatingOutline) {
+                          setGenerationPhase('planning');
+                          await createOutline();
+                        }
+                      }}
+                      disabled={!storySetup.title || storySetup.synopsis.length < 100 || isCreatingOutline}
                     >
-                      🧠 Start Planning Phase
+                      {isCreatingOutline ? '🧠 Creating Outline...' : '🧠 Start Planning Phase'}
                     </button>
                     
                     <div className="planning-info">
@@ -1186,6 +1227,22 @@ const AutoGenerate = ({ conflictData, apiConfig, onSuccess, onError, onNotificat
                   </div>
                 )}
               </div>
+              
+              {isCreatingOutline && (
+                <div style={{ textAlign: 'center', marginTop: '20px' }}>
+                  <button 
+                    className="btn btn-error"
+                    onClick={() => {
+                      setIsCreatingOutline(false);
+                      setCurrentProcess('');
+                      setGenerationPhase('setup');
+                      addLog('Outline creation cancelled by user', 'warning');
+                    }}
+                  >
+                    ❌ Cancel Planning
+                  </button>
+                </div>
+              )}
             </div>
           )}
 
