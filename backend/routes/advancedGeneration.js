@@ -53,7 +53,7 @@ router.post('/createOutline', async (req, res) => {
 
     console.log(`Creating outline for "${title}" - ${chapters} chapters, ${wordCount} words`);
 
-    const outline = await advancedAI.createOutline(storyData);
+    const outline = await advancedAI.createDetailedOutline(storyData);
 
     console.log(`✅ Outline created successfully with ${outline.length} chapters`);
 
@@ -281,7 +281,7 @@ async function processAdvancedStream(streamId) {
     // Create outline if not provided
     let outline = stream.storyData.outline;
     if (!outline || outline.length === 0) {
-      outline = await advancedAI.createOutline(stream.storyData);
+      outline = await advancedAI.createDetailedOutline(stream.storyData);
       advancedAI.broadcastToStream(streamId, 'process_update', { 
         message: 'Outline created, beginning chapter generation...' 
       });

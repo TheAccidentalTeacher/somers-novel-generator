@@ -106,7 +106,7 @@ const AutoGenerate = ({ conflictData, apiConfig, onSuccess, onError, onNotificat
         },
         fantasy: {
           name: 'Christian Fantasy',
-          instructions: 'Create fantasy world with clear Christian allegory, good vs evil themes, redemption arcs, sacrificial love, and biblical parallels in fantastical setting.'
+          instructions: 'Create a theologically rich fantasy world that glorifies the Triune God (Father, Son, Holy Spirit) through allegorical storytelling. Weave Reformed theology naturally into the narrative structure, using fantasy elements to illuminate biblical truths about God\'s sovereignty, Christ\'s redemptive work, and the Spirit\'s guidance. Include: detailed world-building that reflects divine order and biblical principles; characters who grow in understanding of God\'s nature through their journey; magical/fantastical systems that symbolize spiritual truths; clear good vs. evil conflict rooted in biblical worldview; redemption arcs that mirror gospel themes; sacrificial love reflecting Christ\'s sacrifice; proper biblical anthropology showing human dignity and depravity; covenant relationships and community themes; wisdom literature and scripture woven into dialogue and plot; humor that springs from joy in God\'s creation; detailed descriptions of how fantasy elements serve theological symbolism; characters who learn to depend on divine grace rather than self-reliance; resolution that points to God\'s ultimate victory and restoration. Balance profound reverence with engaging storytelling, ensuring every fantastical element serves to illuminate the character and glory of God.'
         },
         suspense: {
           name: 'Christian Suspense',
