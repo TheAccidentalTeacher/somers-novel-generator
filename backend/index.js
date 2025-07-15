@@ -215,15 +215,6 @@ app.get('/api/health', (req, res) => {
   });
 });
 
-// Simple test endpoint for connection verification
-app.post('/api/createOutline', (req, res) => {
-  res.json({
-    success: true,
-    message: 'Connection test successful - createOutline endpoint responding',
-    timestamp: new Date().toISOString()
-  });
-});
-
 // Root endpoint
 app.get('/', (req, res) => {
   res.json({

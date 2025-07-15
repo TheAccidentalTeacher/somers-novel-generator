@@ -153,6 +153,7 @@ class APIService {
           // Minimal test data to verify backend connectivity
           title: 'Connection Test',
           genre: 'Test',
+          synopsis: 'This is a connection test synopsis.',
           wordCount: 1000,
           chapters: 1
         }
