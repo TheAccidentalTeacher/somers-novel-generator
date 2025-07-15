@@ -1,5 +1,5 @@
 // =====================================================================
-// BULLETPROOF API SERVICE - v3.2 (Railway URL Fixed)
+// BULLETPROOF API SERVICE - v3.4 (Clean Environment Variable Usage)
 // =====================================================================
 // Completely rewritten from scratch to work perfectly with the new CORS setup
 
@@ -20,9 +20,8 @@ class APIService {
     if (typeof window !== 'undefined') {
       const hostname = window.location.hostname;
       
-      // Production (Netlify) - use environment variable if available, otherwise Railway URL
+      // Production (Netlify) - use environment variable
       if (hostname.includes('netlify.app')) {
-        // Netlify will have VITE_API_BASE_URL set as environment variable
         return import.meta.env.VITE_API_BASE_URL || 'https://somers-novel-generator-production.up.railway.app/api';
       }
       
