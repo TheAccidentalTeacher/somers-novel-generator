@@ -523,9 +523,17 @@ const AutoGenerate = ({ conflictData, apiConfig, onSuccess, onError, onNotificat
       const eventSource = apiService.createChapterStream(streamResponse.streamId);
       const chapters = [];
       
+      // Enhanced debugging for EventSource
+      eventSource.onopen = () => {
+        console.log('🎥 EventSource connection opened');
+        addLog('🔗 Live stream connection established', 'success');
+      };
+      
       eventSource.onmessage = (event) => {
+        console.log('📨 Received stream event:', event.data);
         try {
           const data = JSON.parse(event.data);
+          console.log('📨 Parsed stream data:', data);
           handleLiveStreamEvent(data, chapters);
         } catch (error) {
           console.error('Stream event parsing error:', error);
@@ -533,7 +541,8 @@ const AutoGenerate = ({ conflictData, apiConfig, onSuccess, onError, onNotificat
       };
       
       eventSource.onerror = (error) => {
-        console.error('Stream error:', error);
+        console.error('❌ Stream error:', error);
+        console.log('❌ EventSource readyState:', eventSource.readyState);
         addLog('❌ Live stream connection failed - falling back to batch mode', 'warning');
         eventSource.close();
         
@@ -546,7 +555,35 @@ const AutoGenerate = ({ conflictData, apiConfig, onSuccess, onError, onNotificat
       };
       
       // Store reference for cleanup
-      abortControllerRef.current = { abort: () => eventSource.close() };
+      let streamTimeout;
+      const resetStreamTimeout = () => {
+        if (streamTimeout) clearTimeout(streamTimeout);
+        streamTimeout = setTimeout(() => {
+          console.log('⏰ Stream timeout - no events received for 60 seconds');
+          addLog('⏰ Stream timeout - falling back to batch mode', 'warning');
+          eventSource.close();
+          startBatchGeneration(storyData).catch(fallbackError => {
+            console.error('Timeout fallback generation error:', fallbackError);
+            throw fallbackError;
+          });
+        }, 60000); // 60 second timeout
+      };
+      
+      resetStreamTimeout(); // Start the timeout
+      
+      // Update event handlers to reset timeout
+      const originalOnMessage = eventSource.onmessage;
+      eventSource.onmessage = (event) => {
+        resetStreamTimeout(); // Reset timeout on any message
+        originalOnMessage(event);
+      };
+      
+      abortControllerRef.current = { 
+        abort: () => {
+          if (streamTimeout) clearTimeout(streamTimeout);
+          eventSource.close();
+        }
+      };
       
     } catch (error) {
       throw error;

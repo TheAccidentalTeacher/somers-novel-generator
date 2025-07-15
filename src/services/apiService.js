@@ -322,6 +322,16 @@ class APIService {
     // Don't use credentials for EventSource to avoid CORS issues
     const eventSource = new EventSource(url);
     
+    // Add debugging
+    eventSource.addEventListener('open', () => {
+      console.log('🔗 EventSource opened successfully');
+    });
+    
+    eventSource.addEventListener('error', (error) => {
+      console.error('❌ EventSource error:', error);
+      console.log('❌ EventSource readyState:', eventSource.readyState);
+    });
+    
     return eventSource;
   }
 }

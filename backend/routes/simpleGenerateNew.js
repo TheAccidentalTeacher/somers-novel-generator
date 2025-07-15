@@ -180,6 +180,7 @@ router.get('/stream/:streamId', async (req, res) => {
     message: 'Stream connected',
     totalChapters: streamData.outline.length 
   })}\n\n`);
+  console.log(`📤 Sent 'connected' event to stream: ${streamId}`);
   
   // Start generating chapters
   streamData.status = 'generating';
@@ -199,20 +200,26 @@ async function generateChaptersStream(streamId, streamData, res) {
       const chapterOutline = streamData.outline[i];
       
       // Send chapter start event
-      res.write(`data: ${JSON.stringify({
+      const startEvent = {
         type: 'chapter_start',
         chapterNumber: i + 1,
         chapterTitle: chapterOutline.title,
         progress: Math.round((i / streamData.outline.length) * 100)
-      })}\n\n`);
+      };
+      res.write(`data: ${JSON.stringify(startEvent)}\n\n`);
+      console.log(`📤 Sent 'chapter_start' event:`, startEvent);
       
       try {
+        console.log(`🖋️ Generating chapter ${i + 1}: ${chapterOutline.title}...`);
+        
         // Generate chapter content
         const chapter = await generator.generateChapter(chapterOutline, {
           previousChapters: streamData.chapters,
           fullPremise: streamData.settings.premise || '',
           genre: streamData.settings.genre || 'fantasy'
         });
+        
+        console.log(`✅ Chapter ${i + 1} generated (${chapter.wordCount || 0} words)`);
         
         // Store completed chapter
         const completedChapter = {
@@ -223,13 +230,15 @@ async function generateChaptersStream(streamId, streamData, res) {
         streamData.chapters.push(completedChapter);
         
         // Send chapter completion event
-        res.write(`data: ${JSON.stringify({
+        const completeEvent = {
           type: 'chapter_complete',
           chapterNumber: i + 1,
           chapter: completedChapter,
           progress: Math.round(((i + 1) / streamData.outline.length) * 100),
           wordCount: chapter.wordCount || 0
-        })}\n\n`);
+        };
+        res.write(`data: ${JSON.stringify(completeEvent)}\n\n`);
+        console.log(`📤 Sent 'chapter_complete' event:`, completeEvent);
         
       } catch (chapterError) {
         // Send chapter error event
