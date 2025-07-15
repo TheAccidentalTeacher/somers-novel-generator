@@ -75,6 +75,34 @@ router.post('/outline', async (req, res) => {
   }
 });
 
+// Generate single chapter
+router.post('/chapter', async (req, res) => {
+  try {
+    const { chapterOutline, context = {} } = req.body;
+    
+    if (!chapterOutline) {
+      return res.status(400).json({ 
+        success: false, 
+        error: 'Chapter outline is required' 
+      });
+    }
+    
+    const chapter = await generator.generateChapter(chapterOutline, context);
+    
+    res.json({
+      success: true,
+      chapter: chapter
+    });
+    
+  } catch (error) {
+    console.error('Chapter error:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message
+    });
+  }
+});
+
 // Legacy compatibility endpoint
 router.post('/simple', async (req, res) => {
   try {

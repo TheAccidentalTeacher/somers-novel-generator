@@ -216,13 +216,10 @@ app.get('/', (req, res) => {
     message: 'Somers Novel Generator API',
     version: '2.0.0',
     endpoints: {
-      quickGenerate: 'POST /api/generateNovel',
-      autoGenerate: 'POST /api/autoGenerateNovel',
-      streamGeneration: 'POST /api/streamGeneration',
-      // Advanced endpoints
-      createOutline: 'POST /api/createOutline',
-      advancedGeneration: 'POST /api/advancedGeneration',
-      advancedStreaming: 'POST /api/advancedStreamGeneration'
+      health: 'GET /api/health',
+      simpleOutline: 'POST /api/simple-generate-new/outline',
+      simpleChapter: 'POST /api/simple-generate-new/chapter',
+      simpleFullNovel: 'POST /api/simple-generate-new/full-novel'
     }
   });
 });
