@@ -377,8 +377,30 @@ Write the complete chapter now. Do not include chapter headers or numbering - ju
   // Enhanced outline creation for detailed premises
   async createDetailedOutline(storyData) {
     const isDetailedPremise = this.detectDetailedPremise(storyData.synopsis);
+    const premiseLength = storyData.synopsis.length;
     
-    if (isDetailedPremise) {
+    if (isDetailedPremise && premiseLength > 5000) {
+      console.log('🧬 Detected detailed premise - using DNA extraction method');
+      
+      try {
+        // Extract premise DNA
+        const premiseDNA = await this.extractPremiseDNA(storyData.synopsis);
+        
+        // Validate DNA extraction
+        const validation = await this.validatePremiseDNA(storyData.synopsis, premiseDNA);
+        
+        if (validation.validated) {
+          // Generate outline from DNA
+          return this.createOutlineFromPremiseDNA(storyData, premiseDNA);
+        } else {
+          console.log('⚠️ DNA validation failed, falling back to detailed premise method');
+          return this.createOutlineFromDetailedPremise(storyData);
+        }
+      } catch (error) {
+        console.error('🚨 DNA extraction failed, falling back to detailed premise method:', error);
+        return this.createOutlineFromDetailedPremise(storyData);
+      }
+    } else if (isDetailedPremise) {
       console.log('🎨 Detected detailed premise - using enhanced outline generation');
       return this.createOutlineFromDetailedPremise(storyData);
     } else {
@@ -500,54 +522,272 @@ Remember: You are adapting the author's rich, detailed vision - not creating a g
     }
   }
 
-  // Stream management for real-time generation
-  createStream(storyData, preferences) {
-    const streamId = `stream_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-    
-    const stream = {
-      id: streamId,
-      storyData,
-      preferences,
-      status: 'initialized',
-      clients: new Set(),
-      chapters: [],
-      currentChapter: 1
-    };
-
-    this.streams.set(streamId, stream);
-    return streamId;
-  }
-
-  getStream(streamId) {
-    return this.streams.get(streamId);
-  }
-
-  addStreamClient(streamId, res) {
-    const stream = this.getStream(streamId);
-    if (stream) {
-      stream.clients.add(res);
+  // PREMISE DNA EXTRACTION SYSTEM
+  // Analyzes detailed premises and extracts essential story elements
+  async extractPremiseDNA(premise) {
+    if (!this.isConfigured()) {
+      throw new Error('OpenAI API key not configured');
     }
-  }
 
-  removeStreamClient(streamId, res) {
-    const stream = this.getStream(streamId);
-    if (stream) {
-      stream.clients.delete(res);
-    }
-  }
+    console.log('🧬 Extracting premise DNA from detailed premise...');
 
-  broadcastToStream(streamId, event, data) {
-    const stream = this.getStream(streamId);
-    if (stream) {
-      const message = `data: ${JSON.stringify({ type: event, ...data })}\n\n`;
-      stream.clients.forEach(client => {
-        try {
-          client.write(message);
-        } catch (error) {
-          console.error('Error writing to stream client:', error);
-          stream.clients.delete(client);
-        }
+    const extractionPrompt = `You are a literary analysis AI specializing in extracting the essential "DNA" from detailed story premises. Your task is to distill a comprehensive premise into its core generative elements while preserving all crucial creative details.
+
+DETAILED PREMISE TO ANALYZE:
+${premise}
+
+EXTRACTION REQUIREMENTS:
+Extract and organize the following elements in JSON format:
+
+{
+  "title": "Story title",
+  "genre": "Primary genre",
+  "subgenre": "Subgenre if specified",
+  "tone": "Overall tone and style",
+  "centralPremise": "Core story concept in 2-3 sentences",
+  "worldBuilding": {
+    "setting": "Primary setting/world name",
+    "geography": ["key locations with brief descriptions"],
+    "magicSystems": ["magical or special systems with descriptions"],
+    "cultures": ["distinct cultures or societies"],
+    "symbolicElements": ["important symbolic or thematic elements"]
+  },
+  "characters": {
+    "protagonists": [
+      {
+        "name": "Character name",
+        "role": "Their role in story",
+        "goal": "Primary goal or motivation",
+        "arc": "Character development arc",
+        "quirks": ["distinctive traits or quirks"]
+      }
+    ],
+    "mentors": [
+      {
+        "name": "Character name", 
+        "role": "Their role in story",
+        "specialty": "What they're known for",
+        "quirks": ["distinctive traits or quirks"]
+      }
+    ],
+    "antagonists": [
+      {
+        "name": "Character name",
+        "motivation": "What drives them",
+        "methods": "How they oppose heroes",
+        "quirks": ["distinctive traits or quirks"]
+      }
+    ]
+  },
+  "plotStructure": {
+    "incitingIncident": "What starts the story",
+    "centralConflict": "Main conflict to resolve", 
+    "keyEvents": ["3-5 major plot points"],
+    "climax": "How story likely culminates",
+    "themes": ["central themes and messages"]
+  },
+  "narrativeElements": {
+    "dialogueStyle": "How characters speak",
+    "humorStyle": "Type of humor if comedic",
+    "symbolicFrameworks": ["theological, philosophical, or thematic frameworks"],
+    "specialTerminology": ["unique terms, names, or concepts"]
+  },
+  "samplesAndExamples": {
+    "keyQuotes": ["memorable dialogue or descriptions from premise"],
+    "sceneExamples": ["brief scene descriptions that show tone"],
+    "characterVoices": ["examples of how characters speak"]
+  }
+}
+
+CRITICAL INSTRUCTIONS:
+1. Extract specific names, places, and terminology exactly as provided
+2. Preserve unique creative elements that make this premise distinctive
+3. Capture the voice, tone, and style indicators
+4. Include theological, philosophical, or thematic frameworks if present
+5. Note any sample dialogue or scene descriptions
+6. Identify biological, scientific, or real-world elements if integrated
+7. Preserve symbolic meanings and allegories
+8. Extract character relationship dynamics
+9. Note any special rules, limitations, or magical systems
+10. Maintain the premise's unique creative vision
+
+Return only the JSON object, no additional text.`;
+
+    try {
+      const response = await this.openai.chat.completions.create({
+        model: 'gpt-4o',
+        messages: [{ role: 'user', content: extractionPrompt }],
+        max_tokens: 4000, // Focused on extraction, not generation
+        temperature: 0.2, // Low for accurate extraction
       });
+
+      const content = response.choices[0].message.content;
+      
+      // Extract JSON from response
+      const jsonMatch = content.match(/\{[\s\S]*\}/);
+      if (!jsonMatch) {
+        throw new Error('Could not parse premise DNA JSON from AI response');
+      }
+
+      const premiseDNA = JSON.parse(jsonMatch[0]);
+      
+      console.log('✅ Premise DNA extracted successfully');
+      console.log(`📊 Extracted: ${premiseDNA.characters.protagonists.length} protagonists, ${premiseDNA.characters.mentors.length} mentors, ${premiseDNA.worldBuilding.geography.length} locations`);
+      
+      return premiseDNA;
+    } catch (error) {
+      console.error('Error extracting premise DNA:', error);
+      throw new Error(`Premise DNA extraction failed: ${error.message}`);
+    }
+  }
+
+  // Validate that DNA extraction captured all important elements
+  async validatePremiseDNA(originalPremise, extractedDNA) {
+    if (!this.isConfigured()) {
+      throw new Error('OpenAI API key not configured');
+    }
+
+    console.log('🔍 Validating premise DNA completeness...');
+
+    const validationPrompt = `You are a quality assurance AI for story premise analysis. Compare the original detailed premise with the extracted story DNA to ensure nothing important was lost.
+
+ORIGINAL PREMISE (first 3000 characters):
+${originalPremise.substring(0, 3000)}...
+
+EXTRACTED DNA:
+${JSON.stringify(extractedDNA, null, 2)}
+
+VALIDATION TASK:
+1. Check if all major characters are captured
+2. Verify key locations and world-building elements are included
+3. Confirm unique terminology and concepts are preserved
+4. Ensure thematic and symbolic elements are captured
+5. Validate that the tone and style are accurately represented
+
+Respond with:
+{
+  "completeness": "high/medium/low",
+  "missingElements": ["list any important missing elements"],
+  "recommendations": ["suggestions for improvement if needed"],
+  "validated": true/false
+}`;
+
+    try {
+      const response = await this.openai.chat.completions.create({
+        model: 'gpt-4o',
+        messages: [{ role: 'user', content: validationPrompt }],
+        max_tokens: 1000,
+        temperature: 0.1,
+      });
+
+      const content = response.choices[0].message.content;
+      const jsonMatch = content.match(/\{[\s\S]*\}/);
+      if (!jsonMatch) {
+        throw new Error('Could not parse validation JSON from AI response');
+      }
+
+      const validation = JSON.parse(jsonMatch[0]);
+      
+      console.log(`📋 DNA Validation: ${validation.completeness} completeness, validated: ${validation.validated}`);
+      if (validation.missingElements.length > 0) {
+        console.log(`⚠️ Missing elements: ${validation.missingElements.join(', ')}`);
+      }
+      
+      return validation;
+    } catch (error) {
+      console.error('Error validating premise DNA:', error);
+      // Don't fail the whole process if validation fails
+      return { completeness: 'unknown', validated: true, missingElements: [], recommendations: [] };
+    }
+  }
+
+  // Enhanced outline creation using premise DNA
+  async createOutlineFromPremiseDNA(storyData, premiseDNA) {
+    if (!this.isConfigured()) {
+      throw new Error('OpenAI API key not configured');
+    }
+
+    console.log('🎨 Generating detailed outline from premise DNA...');
+
+    const { title, genre, subgenre, genreInstructions, wordCount, chapters, targetChapterLength } = storyData;
+
+    const dnaOutlinePrompt = `You are a master storyteller creating detailed chapter outlines from extracted story DNA. The premise has been analyzed and distilled into essential elements. Your task is to create rich, specific chapter outlines that honor every element of the story DNA.
+
+STORY DNA:
+${JSON.stringify(premiseDNA, null, 2)}
+
+STORY SPECIFICATIONS:
+- Title: ${title}
+- Genre: ${genre} (${subgenre})
+- Total Word Count: ${wordCount.toLocaleString()}
+- Number of Chapters: ${chapters}
+- Target Chapter Length: ${targetChapterLength} words each
+
+GENRE GUIDELINES:
+${genreInstructions}
+
+DNA-BASED OUTLINE REQUIREMENTS:
+1. Use exact character names, locations, and terminology from the DNA
+2. Incorporate the specified dialogue style and character voices
+3. Build on the plot structure and key events provided
+4. Weave in the symbolic frameworks and themes
+5. Include the unique magical systems, cultures, and world-building elements
+6. Reference specific quirks, abilities, and character dynamics
+7. Follow the narrative arc suggested in the DNA
+8. Each chapter outline must be 200-400 words with DNA-specific details
+9. Include sample dialogue that matches the character voices from DNA
+10. Build toward the climax and themes identified in the DNA
+
+DETAILED OUTLINE FORMAT:
+Create chapter outlines that feel like they belong in THIS specific story world, with THESE specific characters, in THIS specific tone. Reference:
+- Character names and their roles from DNA
+- Specific locations and their symbolic meanings
+- Unique terminology and concepts from the world
+- The established dialogue style and humor
+- Thematic and symbolic elements
+- Character quirks and abilities
+- Plot progression toward the central conflict
+
+OUTPUT FORMAT:
+Return a JSON array with this exact structure:
+[
+  {
+    "title": "Chapter Title (using DNA terminology and character names)",
+    "summary": "COMPREHENSIVE 200-400 word outline that directly incorporates specific characters, locations, concepts from the story DNA. Include: opening scene with DNA-specified characters and settings, 4-6 key plot events using DNA world-building, sample dialogue matching DNA character voices, specific character development based on DNA arcs, environmental descriptions using DNA geography/culture, conflicts rooted in DNA-established tensions, emotional journey reflecting DNA themes, chapter conclusion advancing DNA plot structure. Use exact names and terminology from the DNA."
+  }
+]
+
+Remember: You are crafting outlines for THIS specific story with THESE specific characters in THIS specific world. Every chapter should feel authentically part of the unique vision captured in the story DNA.`;
+
+    try {
+      const response = await this.openai.chat.completions.create({
+        model: 'gpt-4o',
+        messages: [{ role: 'user', content: dnaOutlinePrompt }],
+        max_tokens: 6000, // Generous for detailed DNA-based outlines
+        temperature: 0.35, // Balanced for creativity while respecting DNA
+      });
+
+      const content = response.choices[0].message.content;
+      
+      // Extract JSON from response
+      const jsonMatch = content.match(/\[[\s\S]*\]/);
+      if (!jsonMatch) {
+        throw new Error('Could not parse outline JSON from AI response');
+      }
+
+      const outline = JSON.parse(jsonMatch[0]);
+      
+      if (!Array.isArray(outline) || outline.length !== chapters) {
+        throw new Error(`Expected ${chapters} chapters, got ${outline.length}`);
+      }
+
+      console.log('✅ DNA-based outline generated successfully');
+      console.log(`📝 Generated ${outline.length} detailed chapters using story DNA`);
+      
+      return outline;
+    } catch (error) {
+      console.error('Error creating DNA-based outline:', error);
+      throw new Error(`DNA-based outline creation failed: ${error.message}`);
     }
   }
 }

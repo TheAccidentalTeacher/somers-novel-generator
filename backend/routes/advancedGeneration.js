@@ -345,4 +345,35 @@ async function processAdvancedStream(streamId) {
   }
 }
 
+// Extract premise DNA (for testing/debugging)
+router.post('/extractPremiseDNA', async (req, res) => {
+  try {
+    const { premise } = req.body;
+    
+    if (!premise) {
+      return res.status(400).json({ error: 'Premise is required' });
+    }
+
+    console.log('🧬 DNA extraction request received');
+    const premiseDNA = await advancedAI.extractPremiseDNA(premise);
+    const validation = await advancedAI.validatePremiseDNA(premise, premiseDNA);
+    
+    res.json({ 
+      premiseDNA, 
+      validation,
+      stats: {
+        originalLength: premise.length,
+        extractedElements: {
+          protagonists: premiseDNA.characters.protagonists.length,
+          locations: premiseDNA.worldBuilding.geography.length,
+          themes: premiseDNA.plotStructure.themes.length
+        }
+      }
+    });
+  } catch (error) {
+    console.error('DNA extraction error:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
 export default router;
