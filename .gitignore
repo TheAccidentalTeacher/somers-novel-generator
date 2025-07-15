@@ -18,6 +18,11 @@ dist-ssr
 .env.development.local
 .env.test.local
 .env.production.local
+
+# Private API keys - NEVER COMMIT
+API_KEYS_PRIVATE.md
+**/API_KEYS_PRIVATE.md
+*.private.md
 backend/.env
 backend/.env.local
 backend/.env.production
