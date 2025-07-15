@@ -37,10 +37,27 @@ class CORSManager {
   constructor() {
     this.isDevelopment = process.env.NODE_ENV !== 'production';
     
-    // EXACT production domains - hardcoded for reliability
-    this.productionDomains = new Set([
-      'https://somers-novel-writer.netlify.app'
-    ]);
+    // Get production domains from environment variables
+    const corsOrigins = process.env.CORS_ORIGINS;
+    const frontendUrl = process.env.FRONTEND_URL;
+    
+    // EXACT production domains - from environment variables first, then fallback
+    this.productionDomains = new Set();
+    
+    // Add from CORS_ORIGINS environment variable
+    if (corsOrigins) {
+      corsOrigins.split(',').forEach(origin => {
+        this.productionDomains.add(origin.trim());
+      });
+    }
+    
+    // Add from FRONTEND_URL environment variable
+    if (frontendUrl) {
+      this.productionDomains.add(frontendUrl.trim());
+    }
+    
+    // Fallback for safety
+    this.productionDomains.add('https://somers-novel-writer.netlify.app');
     
     // Development domains
     this.developmentDomains = new Set([
