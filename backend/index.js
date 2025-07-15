@@ -205,6 +205,25 @@ app.use('/api', generateNovelRouter);
 app.use('/api', streamGenerationRouter);
 app.use('/api', advancedGenerationRouter);
 
+// Health check endpoint for connection testing
+app.get('/api/health', (req, res) => {
+  res.json({
+    success: true,
+    message: 'Somers Novel Generator API is running',
+    timestamp: new Date().toISOString(),
+    version: '2.0.0'
+  });
+});
+
+// Simple test endpoint for connection verification
+app.post('/api/createOutline', (req, res) => {
+  res.json({
+    success: true,
+    message: 'Connection test successful - createOutline endpoint responding',
+    timestamp: new Date().toISOString()
+  });
+});
+
 // Root endpoint
 app.get('/', (req, res) => {
   res.json({
