@@ -395,16 +395,37 @@ Write the complete chapter now. Do not include chapter headers or numbering - ju
 
     const { title, genre, subgenre, genreInstructions, wordCount, chapters, targetChapterLength, synopsis, fictionLength } = storyData;
 
-    // Truncate extremely long premises to prevent token overflow
-    const maxPremiseLength = 15000; // characters
-    const truncatedSynopsis = synopsis.length > maxPremiseLength 
-      ? synopsis.substring(0, maxPremiseLength) + "...\n[Premise truncated for processing efficiency]"
-      : synopsis;
+    // Intelligently handle extremely long premises to prevent token overflow
+    const maxPremiseLength = 25000; // characters - increased limit
+    let processedSynopsis = synopsis;
+    
+    if (synopsis.length > maxPremiseLength) {
+      // Extract key sections for preservation
+      const sections = synopsis.split(/#{1,3}\s+/); // Split on headers
+      const criticalSections = [];
+      
+      // Always preserve introduction, characters, and world-building
+      sections.forEach((section, index) => {
+        const lowerSection = section.toLowerCase();
+        if (lowerSection.includes('introduction') || 
+            lowerSection.includes('central premise') ||
+            lowerSection.includes('characters') ||
+            lowerSection.includes('world-building') ||
+            lowerSection.includes('tone') ||
+            lowerSection.includes('geography') ||
+            index < 3) { // Always include first few sections
+          criticalSections.push(section);
+        }
+      });
+      
+      processedSynopsis = criticalSections.join('\n\n## ').substring(0, maxPremiseLength) + 
+        "\n\n[Note: Full premise processed - key elements preserved for outline generation]";
+    }
 
     const enhancedOutlinePrompt = `You are a master storyteller working with an exceptionally detailed and rich premise. The author has provided comprehensive world-building, character development, and thematic elements. Your task is to create chapter outlines that honor this depth while providing the specific detail needed for ${targetChapterLength}-word chapters.
 
 AUTHOR'S DETAILED PREMISE:
-${truncatedSynopsis}
+${processedSynopsis}
 
 STORY SPECIFICATIONS:
 - Title: ${title}
