@@ -77,7 +77,7 @@ class APIService {
     for (let attempt = 0; attempt <= retryAttempts; attempt++) {
       let timeoutId;
       try {
-        console.log(`🚀 API Request [Attempt ${attempt + 1}]: ${method} ${url}`);
+        console.log(`🚀 API Request [Attempt ${attempt + 1}]: ${method} ${url} (timeout: ${timeout}ms)`);
         
         // Create abort controller for timeout, but respect external signal
         if (signal) {
@@ -88,7 +88,10 @@ class APIService {
           requestConfig.signal = signal;
         } else {
           const controller = new AbortController();
-          timeoutId = setTimeout(() => controller.abort(), timeout);
+          timeoutId = setTimeout(() => {
+            console.log(`⏰ Request timeout triggered after ${timeout}ms for ${method} ${endpoint}`);
+            controller.abort();
+          }, timeout);
           requestConfig.signal = controller.signal;
         }
 
