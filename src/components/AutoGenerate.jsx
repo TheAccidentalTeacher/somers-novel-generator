@@ -419,9 +419,11 @@ const AutoGenerate = ({ conflictData, apiConfig, onSuccess, onError, onNotificat
 
   // Calculate chapters when word count or target length changes
   useEffect(() => {
-    if (storySetup.wordCount && storySetup.targetChapterLength) {
+    if (storySetup.wordCount && storySetup.targetChapterLength && storySetup.wordCount > 0 && storySetup.targetChapterLength > 0) {
       const calculated = Math.round(storySetup.wordCount / storySetup.targetChapterLength);
       setCalculatedChapters(calculated);
+    } else {
+      setCalculatedChapters(0);
     }
   }, [storySetup.wordCount, storySetup.targetChapterLength]);
 
@@ -1664,8 +1666,8 @@ const AutoGenerate = ({ conflictData, apiConfig, onSuccess, onError, onNotificat
                         className="form-input"
                         min={fictionLengths[selectedLengthCategory].minWords}
                         max={fictionLengths[selectedLengthCategory].maxWords}
-                        value={storySetup.wordCount}
-                        onChange={(e) => setStorySetup(prev => ({ ...prev, wordCount: parseInt(e.target.value) }))}
+                        value={storySetup.wordCount || ''}
+                        onChange={(e) => setStorySetup(prev => ({ ...prev, wordCount: parseInt(e.target.value) || 0 }))}
                       />
                       <small>Range: {fictionLengths[selectedLengthCategory].range}</small>
                     </div>
@@ -1678,8 +1680,8 @@ const AutoGenerate = ({ conflictData, apiConfig, onSuccess, onError, onNotificat
                         min="500"
                         max="5000"
                         step="100"
-                        value={storySetup.targetChapterLength}
-                        onChange={(e) => setStorySetup(prev => ({ ...prev, targetChapterLength: parseInt(e.target.value) }))}
+                        value={storySetup.targetChapterLength || ''}
+                        onChange={(e) => setStorySetup(prev => ({ ...prev, targetChapterLength: parseInt(e.target.value) || 2000 }))}
                       />
                     </div>
 
@@ -1691,8 +1693,8 @@ const AutoGenerate = ({ conflictData, apiConfig, onSuccess, onError, onNotificat
                         min="100"
                         max="1000"
                         step="50"
-                        value={storySetup.chapterVariance}
-                        onChange={(e) => setStorySetup(prev => ({ ...prev, chapterVariance: parseInt(e.target.value) }))}
+                        value={storySetup.chapterVariance || ''}
+                        onChange={(e) => setStorySetup(prev => ({ ...prev, chapterVariance: parseInt(e.target.value) || 500 }))}
                       />
                       <small>Chapters can be ±{storySetup.chapterVariance} words from target</small>
                     </div>
@@ -1705,7 +1707,7 @@ const AutoGenerate = ({ conflictData, apiConfig, onSuccess, onError, onNotificat
                         <strong>Estimated Chapters:</strong> {calculatedChapters}
                       </div>
                       <div className="stat">
-                        <strong>Average Chapter Length:</strong> {Math.round(storySetup.wordCount / calculatedChapters)} words
+                        <strong>Average Chapter Length:</strong> {calculatedChapters > 0 ? Math.round(storySetup.wordCount / calculatedChapters) : 0} words
                       </div>
                       <div className="stat">
                         <strong>Chapter Range:</strong> {storySetup.targetChapterLength - storySetup.chapterVariance} - {storySetup.targetChapterLength + storySetup.chapterVariance} words
