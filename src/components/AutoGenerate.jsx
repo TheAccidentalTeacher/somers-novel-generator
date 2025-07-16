@@ -763,17 +763,17 @@ const AutoGenerate = ({ conflictData, apiConfig, onSuccess, onError, onNotificat
         
         try {
           // Generate individual chapter with shorter timeout
-          const chapterResponse = await apiService.makeRequest('/simple-generate-new/chapter', {
+          const chapterResponse = await apiService.makeRequest('/api/simple-generate-new/chapter', {
             method: 'POST',
             body: JSON.stringify({
               chapterOutline,
               context: {
                 previousChapters: chapters,
                 fullPremise: storyData.synopsis,
-                genre: storyData.genre || 'fantasy'
+                genre: storyData.genre || 'fantasy',
+                qualitySettings: qualitySettings // Move quality settings into context where backend expects it
               },
-              preferences: preferences,
-              qualitySettings: qualitySettings // Pass quality enhancement settings
+              preferences: preferences
             }),
             timeout: 300000 // 5 minutes per chapter for complex chapters
           });

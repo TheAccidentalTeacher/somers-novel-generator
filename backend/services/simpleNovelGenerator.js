@@ -83,13 +83,13 @@ IMPORTANT: You must respond with ONLY a valid JSON array in this exact format:
     "number": 1,
     "title": "Chapter Title Here",
     "summary": "Detailed description of what happens in this chapter",
-    "wordTarget": ${Math.round(wordCount/chapterCount)}
+    "wordTarget": ${Math.max(1700, Math.round(wordCount/chapterCount))}
   },
   {
     "number": 2,
     "title": "Chapter Title Here", 
     "summary": "Detailed description of what happens in this chapter",
-    "wordTarget": ${Math.round(wordCount/chapterCount)}
+    "wordTarget": ${Math.max(1700, Math.round(wordCount/chapterCount))}
   }
 ]
 
@@ -282,6 +282,7 @@ Create ${chapterCount} chapters. Return ONLY the JSON array, no other text.`;
     const qualityInstructions = this.generateQualityInstructions(qualitySettings);
 
     // ENHANCED PROMPT with quality instructions
+    const targetWords = chapterOutline.wordTarget || 1700;
     const prompt = `Write Chapter ${chapterOutline.number}: ${chapterOutline.title}
 
 Story: ${fullPremise}
@@ -290,18 +291,35 @@ Chapter goal: ${chapterOutline.summary}
 
 ${qualityInstructions}
 
-Write about ${chapterOutline.wordTarget} words. Focus on creating engaging, natural prose that follows the quality guidelines above.`;
+CRITICAL: Write EXACTLY ${targetWords} words (target range: ${targetWords-200} to ${targetWords+300} words). This is a firm requirement - do not write significantly shorter chapters. Focus on creating engaging, natural prose that follows the quality guidelines above while meeting the word count requirement.
+
+Structure your chapter with:
+- Strong opening that hooks the reader
+- Detailed scene development with rich descriptions
+- Character development and dialogue
+- Rising tension or conflict progression
+- Satisfying chapter conclusion that advances the plot
+
+Write the full chapter now:`;
 
     try {
       const response = await this.getOpenAIClient().chat.completions.create({
         model: 'gpt-4o', // PREMIUM model for actual writing - best quality
         messages: [{ role: 'user', content: prompt }],
-        max_tokens: 4000, // More tokens for detailed chapter writing
+        max_tokens: 6000, // Increased tokens to allow for longer chapters (1700+ words)
         temperature: 0.8 // Good creativity for storytelling
       });
 
       const content = response.choices[0].message.content;
       const wordCount = content.split(/\s+/).length;
+
+      // Log word count for debugging
+      console.log(`Chapter ${chapterOutline.number} generated: ${wordCount} words (target: ${targetWords})`);
+      
+      // If word count is significantly below target, warn but don't fail
+      if (wordCount < targetWords * 0.7) {
+        console.warn(`Chapter ${chapterOutline.number} is significantly short: ${wordCount} words vs target ${targetWords}`);
+      }
 
       return {
         number: chapterOutline.number,
