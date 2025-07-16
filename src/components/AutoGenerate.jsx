@@ -35,6 +35,9 @@ const AutoGenerate = ({ conflictData, apiConfig, onSuccess, onError, onNotificat
   
   const [generationMode, setGenerationMode] = useState('batch'); // 'batch' or 'stream'
   
+  // Add state for tracking completed chapters for recovery
+  const [completedChapters, setCompletedChapters] = useState([]);
+  
   const intervalRef = useRef(null);
   const abortControllerRef = useRef(null);
 
@@ -483,16 +486,27 @@ const AutoGenerate = ({ conflictData, apiConfig, onSuccess, onError, onNotificat
     }
   };
 
-  // NEW: Streaming generation function
-  const startStreamingGeneration = async (storyData) => {
+  // NEW: Streaming generation function with recovery support
+  const startStreamingGeneration = async (storyData, resumeFromChapter = 0) => {
     try {
       // Use existing outline that was already created
       if (!outline || outline.length === 0) {
         throw new Error('No outline available. Please create outline first.');
       }
       
-      addLog(`📝 Using existing outline with ${outline.length} chapters`, 'info');
-      setProgress(20);
+      // Check if we're resuming from a previous attempt
+      const startingChapter = resumeFromChapter || 0;
+      const remainingChapters = outline.length - startingChapter;
+      
+      if (startingChapter > 0) {
+        addLog(`🔄 Resuming from Chapter ${startingChapter + 1} (${remainingChapters} chapters remaining)`, 'info');
+      } else {
+        addLog(`📝 Using existing outline with ${outline.length} chapters`, 'info');
+      }
+      
+      // Set initial progress based on completed chapters
+      const initialProgress = 20 + (startingChapter / outline.length * 70);
+      setProgress(initialProgress);
       
       // Step 2: Start streaming generation
       addLog('🎥 Step 2: Starting live chapter generation...', 'info');
@@ -500,7 +514,8 @@ const AutoGenerate = ({ conflictData, apiConfig, onSuccess, onError, onNotificat
       const streamResponse = await apiService.startStreamingGeneration(outline, {
         genre: storyData.genre || 'fantasy',
         wordCount: storyData.wordCount || 50000,
-        premise: storyData.synopsis
+        premise: storyData.synopsis,
+        resumeFromChapter: startingChapter // Tell backend where to start
       });
       
       if (!streamResponse.success) {
@@ -511,7 +526,8 @@ const AutoGenerate = ({ conflictData, apiConfig, onSuccess, onError, onNotificat
       
       // Connect to stream
       const eventSource = apiService.createChapterStream(streamResponse.streamId);
-      const chapters = [];
+      // Use existing completed chapters as starting point
+      const chapters = [...completedChapters];
       
       // Enhanced debugging for EventSource
       eventSource.onopen = () => {
@@ -524,7 +540,7 @@ const AutoGenerate = ({ conflictData, apiConfig, onSuccess, onError, onNotificat
         try {
           const data = JSON.parse(event.data);
           console.log('📨 Parsed stream data:', data);
-          handleLiveStreamEvent(data, chapters);
+          handleLiveStreamEvent(data, chapters, storyData);
         } catch (error) {
           console.error('Stream event parsing error:', error);
         }
@@ -533,12 +549,15 @@ const AutoGenerate = ({ conflictData, apiConfig, onSuccess, onError, onNotificat
       eventSource.onerror = (error) => {
         console.error('❌ Stream error:', error);
         console.log('❌ EventSource readyState:', eventSource.readyState);
-        addLog('❌ Live stream connection failed - falling back to batch mode', 'warning');
+        
+        // Calculate how many chapters we've completed so far
+        const currentProgress = chapters.length;
+        addLog(`❌ Live stream failed at Chapter ${currentProgress + 1} - switching to batch recovery mode`, 'warning');
         eventSource.close();
         
-        // Fallback to batch generation
-        addLog('🔄 Switching to batch generation mode...', 'info');
-        startBatchGeneration(storyData).catch(fallbackError => {
+        // Fallback to batch generation with recovery
+        addLog(`🔄 Resuming with batch generation from Chapter ${currentProgress + 1}...`, 'info');
+        startBatchGenerationWithRecovery(storyData, currentProgress).catch(fallbackError => {
           console.error('Fallback generation error:', fallbackError);
           throw fallbackError;
         });
@@ -549,10 +568,11 @@ const AutoGenerate = ({ conflictData, apiConfig, onSuccess, onError, onNotificat
       const resetStreamTimeout = () => {
         if (streamTimeout) clearTimeout(streamTimeout);
         streamTimeout = setTimeout(() => {
-          console.log('⏰ Stream timeout - no events received for 5 minutes');
-          addLog('⏰ Stream timeout - falling back to batch mode', 'warning');
+          const currentProgress = chapters.length;
+          console.log(`⏰ Stream timeout at Chapter ${currentProgress + 1} - switching to batch recovery`);
+          addLog(`⏰ Stream timeout - resuming with batch mode from Chapter ${currentProgress + 1}`, 'warning');
           eventSource.close();
-          startBatchGeneration(storyData).catch(fallbackError => {
+          startBatchGenerationWithRecovery(storyData, currentProgress).catch(fallbackError => {
             console.error('Timeout fallback generation error:', fallbackError);
             throw fallbackError;
           });
@@ -580,8 +600,8 @@ const AutoGenerate = ({ conflictData, apiConfig, onSuccess, onError, onNotificat
     }
   };
 
-  // Handle streaming events
-  const handleLiveStreamEvent = (data, chapters) => {
+  // Handle streaming events with recovery tracking
+  const handleLiveStreamEvent = (data, chapters, storyData) => {
     switch (data.type) {
       case 'connected':
         addLog(`🔗 Connected to live stream`, 'success');
@@ -605,6 +625,19 @@ const AutoGenerate = ({ conflictData, apiConfig, onSuccess, onError, onNotificat
         };
         chapters.push(chapter);
         
+        // Update completedChapters state for recovery tracking
+        setCompletedChapters(prev => {
+          const updated = [...prev];
+          // Ensure we don't duplicate chapters
+          const existingIndex = updated.findIndex(ch => ch.number === chapter.number);
+          if (existingIndex >= 0) {
+            updated[existingIndex] = chapter;
+          } else {
+            updated.push(chapter);
+          }
+          return updated.sort((a, b) => a.number - b.number);
+        });
+        
         addLog(`✅ Chapter ${data.chapterNumber} completed! (${data.wordCount} words)`, 'success');
         setProgress(20 + (data.progress * 0.7));
         
@@ -622,6 +655,12 @@ const AutoGenerate = ({ conflictData, apiConfig, onSuccess, onError, onNotificat
         
       case 'chapter_error':
         addLog(`❌ Error in Chapter ${data.chapterNumber}: ${data.error}`, 'error');
+        // Don't fail completely, try to continue or fallback
+        const currentProgress = chapters.length;
+        addLog(`🔄 Attempting to recover from Chapter ${currentProgress + 1}...`, 'info');
+        setTimeout(() => {
+          startBatchGenerationWithRecovery(storyData, currentProgress);
+        }, 2000);
         break;
         
       case 'complete':
@@ -633,8 +672,10 @@ const AutoGenerate = ({ conflictData, apiConfig, onSuccess, onError, onNotificat
         
       case 'error':
         addLog(`❌ Stream error: ${data.message}`, 'error');
-        setError(new Error(data.message));
-        setIsGenerating(false);
+        // Attempt recovery instead of failing
+        const errorProgress = chapters.length;
+        addLog(`🔄 Attempting recovery from Chapter ${errorProgress + 1}...`, 'info');
+        startBatchGenerationWithRecovery(storyData, errorProgress);
         break;
         
       default:
@@ -642,23 +683,33 @@ const AutoGenerate = ({ conflictData, apiConfig, onSuccess, onError, onNotificat
     }
   };
 
-  // Existing batch generation (renamed)
-  const startBatchGeneration = async (storyData) => {
+  // Enhanced batch generation with recovery support
+  const startBatchGenerationWithRecovery = async (storyData, startFromChapter = 0) => {
     try {
       // Use existing outline that was already created
       if (!outline || outline.length === 0) {
         throw new Error('No outline available. Please create outline first.');
       }
       
-      addLog(`📝 Using existing outline with ${outline.length} chapters`, 'info');
-      setProgress(20);
-      
-      // Now generate chapters individually to avoid timeouts
-      addLog('📚 Step 2: Generating chapters...', 'info');
-      const chapters = [];
       const totalChapters = outline.length;
+      const remainingChapters = totalChapters - startFromChapter;
       
-      for (let i = 0; i < totalChapters; i++) {
+      if (startFromChapter > 0) {
+        addLog(`🔄 Resuming batch generation from Chapter ${startFromChapter + 1} (${remainingChapters} chapters remaining)`, 'info');
+      } else {
+        addLog(`📝 Using existing outline with ${outline.length} chapters`, 'info');
+      }
+      
+      // Set initial progress based on completed chapters
+      const initialProgress = 20 + (startFromChapter / totalChapters * 70);
+      setProgress(initialProgress);
+      
+      // Start with existing completed chapters
+      const chapters = [...completedChapters];
+      
+      addLog(`📚 Generating remaining chapters (${startFromChapter + 1} to ${totalChapters})...`, 'info');
+      
+      for (let i = startFromChapter; i < totalChapters; i++) {
         const chapterOutline = outline[i];
         addLog(`Writing Chapter ${i + 1}: ${chapterOutline.title}...`, 'info');
         
@@ -685,10 +736,37 @@ const AutoGenerate = ({ conflictData, apiConfig, onSuccess, onError, onNotificat
               title: chapterResponse.chapter.title || `Chapter ${i + 1}`,
               chapterIndex: i
             };
+            
             chapters.push(chapter);
+            
+            // Update completedChapters state for recovery tracking
+            setCompletedChapters(prev => {
+              const updated = [...prev];
+              // Ensure we don't duplicate chapters
+              const existingIndex = updated.findIndex(ch => ch.number === chapter.number);
+              if (existingIndex >= 0) {
+                updated[existingIndex] = chapter;
+              } else {
+                updated.push(chapter);
+              }
+              return updated.sort((a, b) => a.number - b.number);
+            });
+            
             const progressPercent = 20 + Math.round((i + 1) / totalChapters * 70); // 20-90%
             setProgress(progressPercent);
             addLog(`✅ Chapter ${i + 1} completed (${chapter.wordCount || 'unknown'} words)`, 'success');
+            
+            // Update result with current progress
+            const currentResult = {
+              outline: outline,
+              chapters: [...chapters],
+              stats: {
+                totalWords: chapters.reduce((sum, ch) => sum + (ch.wordCount || 0), 0),
+                chapterCount: chapters.length
+              }
+            };
+            setResult(currentResult);
+            
           } else {
             throw new Error(`Failed to generate chapter ${i + 1}`);
           }
@@ -696,6 +774,7 @@ const AutoGenerate = ({ conflictData, apiConfig, onSuccess, onError, onNotificat
         } catch (chapterError) {
           addLog(`❌ Error generating chapter ${i + 1}: ${chapterError.message}`, 'error');
           // Continue with remaining chapters rather than failing completely
+          addLog(`🔄 Continuing with next chapter...`, 'info');
         }
       }
       
@@ -740,6 +819,11 @@ const AutoGenerate = ({ conflictData, apiConfig, onSuccess, onError, onNotificat
     } catch (error) {
       throw error; // Re-throw to be handled by main function
     }
+  };
+
+  // Legacy batch generation (now calls recovery version)
+  const startBatchGeneration = async (storyData) => {
+    return startBatchGenerationWithRecovery(storyData, 0);
   };
 
   const createOutline = async () => {
@@ -1221,6 +1305,7 @@ const AutoGenerate = ({ conflictData, apiConfig, onSuccess, onError, onNotificat
     setCurrentProcess('');
     setGenerationPhase('setup');
     setOutline([]);
+    setCompletedChapters([]); // Clear recovery state
     
     if (intervalRef.current) {
       clearInterval(intervalRef.current);
@@ -1256,6 +1341,7 @@ const AutoGenerate = ({ conflictData, apiConfig, onSuccess, onError, onNotificat
     setJobId(null);
     setCurrentProcess('');
     setGenerationPhase('setup');
+    // Note: Don't clear completedChapters here - user might want to resume
     addLog('🛑 Generation forcefully stopped by user', 'warning');
     onNotification('Generation stopped', 'warning');
   };
@@ -1787,11 +1873,50 @@ const AutoGenerate = ({ conflictData, apiConfig, onSuccess, onError, onNotificat
               </div>
 
               <div className="generation-actions">
+                {completedChapters.length > 0 && !isGenerating && (
+                  <div className="recovery-info">
+                    <div className="recovery-banner">
+                      📚 Found {completedChapters.length} completed chapters from previous session
+                    </div>
+                    <div className="recovery-actions">
+                      <button 
+                        className="btn btn-success btn-large"
+                        onClick={() => startStreamingGeneration(conflictData || {
+                          title: storySetup.title,
+                          genre: `${storySetup.genre}_${storySetup.subgenre}`,
+                          synopsis: storySetup.synopsis
+                        }, completedChapters.length)}
+                      >
+                        🔄 Resume from Chapter {completedChapters.length + 1}
+                      </button>
+                      <button 
+                        className="btn btn-outline"
+                        onClick={() => setCompletedChapters([])}
+                      >
+                        🗑️ Clear & Start Fresh
+                      </button>
+                    </div>
+                    <div className="completed-chapters-list">
+                      <h4>Completed Chapters:</h4>
+                      <div className="chapters-preview">
+                        {completedChapters.map((chapter, index) => (
+                          <div key={index} className="chapter-preview-item">
+                            <span className="chapter-number">Ch. {chapter.number}</span>
+                            <span className="chapter-title">{chapter.title}</span>
+                            <span className="chapter-words">{chapter.wordCount || 'N/A'} words</span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+                )}
+                
                 <button 
                   className="btn btn-primary btn-large"
                   onClick={startGeneration}
+                  disabled={completedChapters.length > 0}
                 >
-                  🚀 Start Auto-Generation
+                  {completedChapters.length > 0 ? '🔄 Use Resume Button Above' : '🚀 Start Auto-Generation'}
                 </button>
                 
                 <div className="auto-generation-info">
@@ -1801,6 +1926,7 @@ const AutoGenerate = ({ conflictData, apiConfig, onSuccess, onError, onNotificat
                     <li>Each chapter builds on the previous ones</li>
                     <li>Real-time progress tracking and logs</li>
                     <li>Can be paused or cancelled at any time</li>
+                    <li>🔄 Automatically resumes from last completed chapter if interrupted</li>
                     <li>Estimated time: 10-30 minutes for full novel</li>
                   </ul>
                 </div>
@@ -1845,10 +1971,16 @@ const AutoGenerate = ({ conflictData, apiConfig, onSuccess, onError, onNotificat
                     style={{ width: `${progress}%` }}
                   ></div>
                 </div>
-                <div className="progress-text">
+                <div className={`progress-text ${completedChapters.length > 0 ? 'recovery' : ''}`}>
                   {progress.toFixed(1)}% Complete
+                  {completedChapters.length > 0 && (
+                    <span> - Resumed from Chapter {completedChapters.length + 1}</span>
+                  )}
                   {status?.currentChapter && (
                     <span> - Chapter {status.currentChapter} of {calculatedChapters || (conflictData?.chapters || storySetup.chapters)}</span>
+                  )}
+                  {completedChapters.length > 0 && result?.chapters && (
+                    <span> - Total: {result.chapters.length} chapters completed</span>
                   )}
                 </div>
               </div>
