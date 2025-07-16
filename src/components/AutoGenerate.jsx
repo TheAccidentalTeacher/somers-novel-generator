@@ -92,7 +92,45 @@ const AutoGenerate = ({ conflictData, apiConfig, onSuccess, onError, onNotificat
     
     // Antagonist Depth
     complexAntagonist: true,
-    sympatheticVillain: true
+    sympatheticVillain: true,
+    
+    // NEW: Advanced Anti-AI Pattern Settings
+    // Based on critique feedback for more human-like writing
+    
+    // Character Arc Differentiation
+    asymmetricalCharacterArcs: true, // Characters follow different patterns, not identical arcs
+    genuineCharacterConflict: true, // Characters disagree meaningfully without immediate resolution
+    persistentCharacterFlaws: true, // Flaws don't disappear after single revelation moments
+    
+    // Narrative Asymmetry
+    asymmetricalThematicFocus: true, // Some themes get more/less attention than others
+    unEvenChapterTreatment: true, // Not all story elements receive identical page time
+    mysteriesRemainUnsolved: true, // Some questions stay partially answered
+    
+    // Authentic Imperfection
+    messyResolutions: true, // Conflicts have lasting consequences, incomplete solutions
+    uselessButLivingDetails: true, // Include details that don't serve plot but add authenticity
+    antiClimacticMoments: true, // Some buildup leads to mundane rather than dramatic outcomes
+    
+    // Writing Style Variation
+    chapterVoiceVariation: true, // Different chapters have slightly different writing styles
+    toneInconsistency: true, // Allow natural variation in tone throughout story
+    formalityFluctuation: true, // Vary between formal and casual language naturally
+    
+    // Theological Authenticity
+    theologicalAmbiguity: true, // Allow mystery and unanswered questions in faith elements
+    competingTheologicalViews: true, // Characters may have different theological perspectives
+    faithStrugglesWithoutResolution: true, // Some spiritual struggles continue without neat answers
+    
+    // Realistic Pacing
+    boringButNecessaryScenes: true, // Include mundane moments that feel real
+    unevenPlotDistribution: true, // Some chapters more eventful than others
+    antiClimacticChapterEndings: true, // Not every chapter ends dramatically
+    
+    // Human-like Inconsistencies
+    characterMoodVariation: true, // Characters act differently in different moods/contexts
+    writerForgetsMinorDetails: true, // Small inconsistencies that feel human
+    naturalDigressions: true // Allow story to wander slightly from main plot
   });
 
   // Comprehensive genre mapping system for LLM instructions
@@ -1663,6 +1701,67 @@ const AutoGenerate = ({ conflictData, apiConfig, onSuccess, onError, onNotificat
       instructions.push("SYMPATHETIC ANTAGONIST: Make the antagonist occasionally sympathetic or relatable. Perhaps they've experienced suffering that explains their perspective, or they genuinely believe their approach would help people, despite being misguided.");
     }
     
+    // Advanced Anti-AI Pattern Settings
+    if (qualitySettings.asymmetricalCharacterArcs) {
+      instructions.push("ASYMMETRICAL CHARACTER DEVELOPMENT: Characters should follow completely different growth patterns - some develop quickly, others slowly, some focus on spiritual growth while others learn practical wisdom. Avoid synchronized character development where everyone learns similar lessons at similar paces.");
+    }
+    
+    if (qualitySettings.genuineCharacterConflict) {
+      instructions.push("AUTHENTIC CHARACTER DISAGREEMENTS: Characters should have meaningful disagreements about methods, priorities, and interpretations of events. Let characters argue, misunderstand each other, and reach different conclusions about the same situation. Not all conflicts should resolve neatly.");
+    }
+    
+    if (qualitySettings.asymmetricalThematicFocus) {
+      instructions.push("UNEVEN THEMATIC ATTENTION: Give different themes vastly different amounts of exploration. Some spiritual concepts might be mentioned briefly while others get deep exploration. Some chapters might focus heavily on one theme while ignoring others completely.");
+    }
+    
+    if (qualitySettings.messyResolutions) {
+      instructions.push("IMPERFECT ENDINGS: Not all conflicts should resolve cleanly. Some problems should have lasting consequences, some relationships should remain strained, some questions should stay unanswered. Show that some damage takes time to heal or may never fully heal.");
+    }
+    
+    if (qualitySettings.chapterVoiceVariation) {
+      instructions.push("CHAPTER VOICE SHIFTS: Each chapter should feel like it was written in a different session or mood. Vary the complexity of descriptions, the pace of dialogue, the focus on action vs reflection. Some chapters should be more introspective, others more action-focused.");
+    }
+    
+    if (qualitySettings.theologicalAmbiguity) {
+      instructions.push("SPIRITUAL UNCERTAINTY: Include moments where characters don't understand God's will, where prayer doesn't bring clarity, where faithful people reach different conclusions. Some theological questions should remain open, some character's spiritual experiences should be ambiguous.");
+    }
+    
+    if (qualitySettings.paceInconsistency) {
+      instructions.push("IRREGULAR PACING: Some chapters should move very slowly with detailed description and contemplation, others should rush through events quickly. Don't maintain consistent pacing - let the narrative speed vary naturally based on content and mood.");
+    }
+    
+    if (qualitySettings.imperfectDialogue) {
+      instructions.push("REALISTIC CONVERSATION: Characters should interrupt each other, misunderstand, speak at cross-purposes, and have conversations that don't reach clear conclusions. Include awkward silences, half-finished thoughts, and dialogue that doesn't always advance the plot.");
+    }
+    
+    if (qualitySettings.humanInconsistencies) {
+      instructions.push("CHARACTER CONTRADICTIONS: Characters should occasionally act inconsistently with their established personalities - being wise in one situation but foolish in another, brave sometimes but fearful at other times. Show human complexity and unpredictability.");
+    }
+    
+    if (qualitySettings.imperfectWisdom) {
+      instructions.push("FLAWED MENTOR GUIDANCE: Mentors and wise characters should sometimes give incomplete advice, be wrong about situations, or struggle with their own doubts. Their wisdom should feel earned through struggle rather than effortlessly perfect.");
+    }
+    
+    if (qualitySettings.naturalLanguageFlaws) {
+      instructions.push("ORGANIC LANGUAGE PATTERNS: Include natural speech patterns like trailing off, starting sentences differently than intended, using imprecise language, and having characters search for the right words. Avoid overly polished, literary dialogue.");
+    }
+    
+    if (qualitySettings.inconsistentEmotions) {
+      instructions.push("EMOTIONAL COMPLEXITY: Characters should experience conflicting emotions simultaneously - feeling grateful but resentful, hopeful but afraid, loving but frustrated. Emotional states should shift unexpectedly and not always match the situation logically.");
+    }
+    
+    if (qualitySettings.narrativeAsymmetry) {
+      instructions.push("STORY STRUCTURE IRREGULARITY: Chapters should vary dramatically in length, focus, and importance. Some chapters should feel transitional, others climactic. Don't follow a rigid three-act structure - let the story develop organically with uneven emphasis.");
+    }
+    
+    if (qualitySettings.authenticImperfection) {
+      instructions.push("EMBRACE FLAWS: Include moments that feel slightly awkward, conversations that don't quite work, descriptions that are imperfect, and plot elements that are rough around the edges. Perfect prose can feel artificial - aim for authentic human storytelling.");
+    }
+    
+    if (qualitySettings.randomMoments) {
+      instructions.push("ORGANIC DETAILS: Include small, seemingly insignificant moments that don't advance the plot - characters noticing random details, having brief interactions that don't lead anywhere, or experiencing minor events that feel human but aren't symbolically important.");
+    }
+    
     return instructions.length > 0 ? 
       `\n\nWRITING QUALITY ENHANCEMENT INSTRUCTIONS:\n${instructions.map(inst => `• ${inst}`).join('\n')}\n` : 
       '';
@@ -2415,6 +2514,147 @@ const AutoGenerate = ({ conflictData, apiConfig, onSuccess, onError, onNotificat
                       </label>
                     </div>
                   </div>
+
+                  <div className="quality-category">
+                    <h4>🧠 Anti-AI Pattern Settings</h4>
+                    <p className="category-description">Advanced settings to make writing feel more human and less artificially generated</p>
+                    <div className="preferences-checkboxes">
+                      <label className="form-checkbox">
+                        <input
+                          type="checkbox"
+                          checked={qualitySettings.asymmetricalCharacterArcs}
+                          onChange={(e) => setQualitySettings(prev => ({ ...prev, asymmetricalCharacterArcs: e.target.checked }))}
+                        />
+                        Asymmetrical character development (avoid synchronized growth)
+                      </label>
+                      
+                      <label className="form-checkbox">
+                        <input
+                          type="checkbox"
+                          checked={qualitySettings.genuineCharacterConflict}
+                          onChange={(e) => setQualitySettings(prev => ({ ...prev, genuineCharacterConflict: e.target.checked }))}
+                        />
+                        Characters disagree meaningfully (not all conflicts resolve neatly)
+                      </label>
+                      
+                      <label className="form-checkbox">
+                        <input
+                          type="checkbox"
+                          checked={qualitySettings.asymmetricalThematicFocus}
+                          onChange={(e) => setQualitySettings(prev => ({ ...prev, asymmetricalThematicFocus: e.target.checked }))}
+                        />
+                        Uneven thematic attention (some themes explored more than others)
+                      </label>
+                      
+                      <label className="form-checkbox">
+                        <input
+                          type="checkbox"
+                          checked={qualitySettings.messyResolutions}
+                          onChange={(e) => setQualitySettings(prev => ({ ...prev, messyResolutions: e.target.checked }))}
+                        />
+                        Imperfect endings (some conflicts have lasting consequences)
+                      </label>
+                      
+                      <label className="form-checkbox">
+                        <input
+                          type="checkbox"
+                          checked={qualitySettings.chapterVoiceVariation}
+                          onChange={(e) => setQualitySettings(prev => ({ ...prev, chapterVoiceVariation: e.target.checked }))}
+                        />
+                        Chapter voice shifts (different writing style per chapter)
+                      </label>
+                      
+                      <label className="form-checkbox">
+                        <input
+                          type="checkbox"
+                          checked={qualitySettings.theologicalAmbiguity}
+                          onChange={(e) => setQualitySettings(prev => ({ ...prev, theologicalAmbiguity: e.target.checked }))}
+                        />
+                        Embrace spiritual uncertainty (some questions stay unanswered)
+                      </label>
+                      
+                      <label className="form-checkbox">
+                        <input
+                          type="checkbox"
+                          checked={qualitySettings.paceInconsistency}
+                          onChange={(e) => setQualitySettings(prev => ({ ...prev, paceInconsistency: e.target.checked }))}
+                        />
+                        Irregular pacing (some chapters slow, others rushed)
+                      </label>
+                      
+                      <label className="form-checkbox">
+                        <input
+                          type="checkbox"
+                          checked={qualitySettings.imperfectDialogue}
+                          onChange={(e) => setQualitySettings(prev => ({ ...prev, imperfectDialogue: e.target.checked }))}
+                        />
+                        Realistic conversation (interruptions, misunderstandings, incomplete thoughts)
+                      </label>
+                      
+                      <label className="form-checkbox">
+                        <input
+                          type="checkbox"
+                          checked={qualitySettings.humanInconsistencies}
+                          onChange={(e) => setQualitySettings(prev => ({ ...prev, humanInconsistencies: e.target.checked }))}
+                        />
+                        Character contradictions (people act inconsistently like real humans)
+                      </label>
+                      
+                      <label className="form-checkbox">
+                        <input
+                          type="checkbox"
+                          checked={qualitySettings.imperfectWisdom}
+                          onChange={(e) => setQualitySettings(prev => ({ ...prev, imperfectWisdom: e.target.checked }))}
+                        />
+                        Flawed mentor guidance (wise characters make mistakes too)
+                      </label>
+                      
+                      <label className="form-checkbox">
+                        <input
+                          type="checkbox"
+                          checked={qualitySettings.naturalLanguageFlaws}
+                          onChange={(e) => setQualitySettings(prev => ({ ...prev, naturalLanguageFlaws: e.target.checked }))}
+                        />
+                        Natural speech patterns (trailing off, imprecise language, searching for words)
+                      </label>
+                      
+                      <label className="form-checkbox">
+                        <input
+                          type="checkbox"
+                          checked={qualitySettings.inconsistentEmotions}
+                          onChange={(e) => setQualitySettings(prev => ({ ...prev, inconsistentEmotions: e.target.checked }))}
+                        />
+                        Complex emotional states (conflicting emotions, unexpected shifts)
+                      </label>
+                      
+                      <label className="form-checkbox">
+                        <input
+                          type="checkbox"
+                          checked={qualitySettings.narrativeAsymmetry}
+                          onChange={(e) => setQualitySettings(prev => ({ ...prev, narrativeAsymmetry: e.target.checked }))}
+                        />
+                        Irregular story structure (chapters vary dramatically in length and importance)
+                      </label>
+                      
+                      <label className="form-checkbox">
+                        <input
+                          type="checkbox"
+                          checked={qualitySettings.authenticImperfection}
+                          onChange={(e) => setQualitySettings(prev => ({ ...prev, authenticImperfection: e.target.checked }))}
+                        />
+                        Embrace flaws (awkward moments, imperfect prose, rough edges)
+                      </label>
+                      
+                      <label className="form-checkbox">
+                        <input
+                          type="checkbox"
+                          checked={qualitySettings.randomMoments}
+                          onChange={(e) => setQualitySettings(prev => ({ ...prev, randomMoments: e.target.checked }))}
+                        />
+                        Organic details (small moments that don't advance plot but feel human)
+                      </label>
+                    </div>
+                  </div>
                 </div>
 
                 <div className="quality-presets">
@@ -2454,6 +2694,69 @@ const AutoGenerate = ({ conflictData, apiConfig, onSuccess, onError, onNotificat
                       }}
                     >
                       🎯 Essential Only
+                    </button>
+                    <button 
+                      className="btn btn-small" 
+                      onClick={() => {
+                        const humanLikeSettings = {
+                          asymmetricalCharacterArcs: true,
+                          genuineCharacterConflict: true,
+                          asymmetricalThematicFocus: true,
+                          messyResolutions: true,
+                          chapterVoiceVariation: true,
+                          theologicalAmbiguity: true,
+                          paceInconsistency: true,
+                          imperfectDialogue: true,
+                          humanInconsistencies: true,
+                          imperfectWisdom: true,
+                          naturalLanguageFlaws: true,
+                          inconsistentEmotions: true,
+                          narrativeAsymmetry: true,
+                          authenticImperfection: true,
+                          randomMoments: true
+                        };
+                        // Set all others to false
+                        const allSettings = Object.fromEntries(
+                          Object.keys(qualitySettings).map(key => [
+                            key, 
+                            humanLikeSettings.hasOwnProperty(key) ? humanLikeSettings[key] : false
+                          ])
+                        );
+                        setQualitySettings(allSettings);
+                      }}
+                    >
+                      🧠 Anti-AI Patterns Only
+                    </button>
+                    <button 
+                      className="btn btn-small" 
+                      onClick={() => {
+                        const balancedSettings = {
+                          // Core quality settings
+                          varyTheologicalExplanations: true,
+                          showDontTellTheology: true,
+                          includeSetbacks: true,
+                          uniqueVoices: true,
+                          enhancedSensoryDetails: true,
+                          varySentenceStructure: true,
+                          // Key anti-AI pattern settings
+                          asymmetricalCharacterArcs: true,
+                          genuineCharacterConflict: true,
+                          messyResolutions: true,
+                          chapterVoiceVariation: true,
+                          imperfectDialogue: true,
+                          humanInconsistencies: true
+                        };
+                        // Set all others to false
+                        const allSettings = Object.fromEntries(
+                          Object.keys(qualitySettings).map(key => [
+                            key, 
+                            balancedSettings.hasOwnProperty(key) ? balancedSettings[key] : false
+                          ])
+                        );
+                        setQualitySettings(allSettings);
+                      }}
+                    >
+                      ⚖️ Balanced Human-Like
                     </button>
                   </div>
                 </div>
