@@ -49,6 +49,50 @@ const AutoGenerate = ({ conflictData, apiConfig, onSuccess, onError, onNotificat
     generateExtras: true
   });
 
+  // Writing Quality Enhancement settings
+  const [qualitySettings, setQualitySettings] = useState({
+    // Reduce Repetitive Theological Explanations
+    varyTheologicalExplanations: true,
+    showDontTellTheology: true,
+    
+    // Complex Character Arcs
+    includeSetbacks: true,
+    showInternalConflict: true,
+    allowBacksliding: true,
+    
+    // Reduce Perfect Symmetry
+    allowUnevenPacing: true,
+    varyCharacterFocus: true,
+    
+    // Dialogue Variation
+    uniqueVoices: true,
+    characterSpecificSpeech: true,
+    
+    // Sensory Details
+    enhancedSensoryDetails: true,
+    showEmotionsPhysically: true,
+    
+    // Moral Ambiguity
+    includeMoralComplexity: true,
+    competingValues: true,
+    
+    // Narrative Timing
+    imperfectTiming: true,
+    allowSelfDiscovery: true,
+    
+    // Sentence Variety
+    varySentenceStructure: true,
+    dramaticPacing: true,
+    
+    // Unexpected Elements
+    includeSuprises: true,
+    organicPlotTwists: true,
+    
+    // Antagonist Depth
+    complexAntagonist: true,
+    sympatheticVillain: true
+  });
+
   // Comprehensive genre mapping system for LLM instructions
   const genreCategories = {
     mystery: {
@@ -515,7 +559,9 @@ const AutoGenerate = ({ conflictData, apiConfig, onSuccess, onError, onNotificat
         genre: storyData.genre || 'fantasy',
         wordCount: storyData.wordCount || 50000,
         premise: storyData.synopsis,
-        resumeFromChapter: startingChapter // Tell backend where to start
+        resumeFromChapter: startingChapter, // Tell backend where to start
+        preferences: preferences,
+        qualitySettings: qualitySettings // Pass quality enhancement settings
       });
       
       if (!streamResponse.success) {
@@ -723,7 +769,9 @@ const AutoGenerate = ({ conflictData, apiConfig, onSuccess, onError, onNotificat
                 previousChapters: chapters,
                 fullPremise: storyData.synopsis,
                 genre: storyData.genre || 'fantasy'
-              }
+              },
+              preferences: preferences,
+              qualitySettings: qualitySettings // Pass quality enhancement settings
             }),
             timeout: 300000 // 5 minutes per chapter for complex chapters
           });
@@ -854,7 +902,9 @@ const AutoGenerate = ({ conflictData, apiConfig, onSuccess, onError, onNotificat
         chapters: calculatedChapters,
         targetChapterLength: storySetup.targetChapterLength,
         synopsis: storySetup.synopsis,
-        fictionLength: storySetup.fictionLength
+        fictionLength: storySetup.fictionLength,
+        preferences: preferences,
+        qualitySettings: qualitySettings // Include quality enhancement settings
       };
 
       // Debug logging
@@ -1344,6 +1394,99 @@ const AutoGenerate = ({ conflictData, apiConfig, onSuccess, onError, onNotificat
     // Note: Don't clear completedChapters here - user might want to resume
     addLog('🛑 Generation forcefully stopped by user', 'warning');
     onNotification('Generation stopped', 'warning');
+  };
+
+  // Generate quality enhancement instructions for AI prompts
+  const generateQualityInstructions = (qualitySettings) => {
+    const instructions = [];
+    
+    if (qualitySettings.varyTheologicalExplanations) {
+      instructions.push("THEOLOGICAL VARIETY: Avoid repeating identical theological explanations. Each mention of Trinity, divine concepts, or spiritual truths should use unique phrasing, metaphors, and perspectives. Never use the exact same phrases like 'Father's authority, Son's grace, Spirit's witness' repeatedly.");
+    }
+    
+    if (qualitySettings.showDontTellTheology) {
+      instructions.push("SHOW THEOLOGY: Demonstrate theological concepts through character experiences, actions, and discoveries rather than explicit explanations. Let readers understand spiritual truths through story events, not direct statements.");
+    }
+    
+    if (qualitySettings.includeSetbacks) {
+      instructions.push("REALISTIC SETBACKS: Include genuine setbacks, failures, and moments where characters struggle or regress. Character growth should not be linear - show backsliding, doubt, and realistic obstacles to spiritual development.");
+    }
+    
+    if (qualitySettings.showInternalConflict) {
+      instructions.push("INTERNAL CONFLICT: Show character internal struggles through actions, thoughts, and physical reactions rather than stating them directly. Demonstrate tension through behavior, not exposition.");
+    }
+    
+    if (qualitySettings.allowBacksliding) {
+      instructions.push("CHARACTER REGRESSION: Allow characters to occasionally misapply lessons, doubt their progress, or revert to old patterns. Show the messiness of real spiritual growth with moments of weakness and confusion.");
+    }
+    
+    if (qualitySettings.allowUnevenPacing) {
+      instructions.push("UNEVEN PACING: Not all story elements should receive equal treatment. Some characters may develop faster, some regions may be more mysterious, some themes may need more exploration time. Embrace narrative asymmetry.");
+    }
+    
+    if (qualitySettings.varyCharacterFocus) {
+      instructions.push("VARIED CHARACTER FOCUS: Different characters should receive different amounts of attention and development. Not everyone needs equal screen time or parallel growth patterns. Let some characters be more prominent than others naturally.");
+    }
+    
+    if (qualitySettings.uniqueVoices) {
+      instructions.push("DISTINCT VOICES: Each character must have a unique speaking pattern, vocabulary, and style based on their background, age, and personality. Sages should not sound like young characters; different regions should have different speech patterns.");
+    }
+    
+    if (qualitySettings.characterSpecificSpeech) {
+      instructions.push("CHARACTER-SPECIFIC METAPHORS: Tailor each character's metaphors and references to their background - culinary metaphors for cooks, architectural references for builders, natural imagery for outdoor characters, formal language for authority figures.");
+    }
+    
+    if (qualitySettings.enhancedSensoryDetails) {
+      instructions.push("SENSORY RICHNESS: Include specific sounds, smells, textures, tastes, and visual details. Avoid generic adjectives like 'beautiful' or 'majestic.' Use concrete sensory descriptions that make the world feel lived-in and real.");
+    }
+    
+    if (qualitySettings.showEmotionsPhysically) {
+      instructions.push("PHYSICAL EMOTIONS: Instead of stating emotions ('he felt peaceful'), describe physical sensations ('his shoulders relaxed, his breathing slowed'). Show emotional states through body language, posture, and physical reactions.");
+    }
+    
+    if (qualitySettings.includeMoralComplexity) {
+      instructions.push("MORAL AMBIGUITY: Include situations where the right choice isn't immediately clear. Create scenarios where following one good principle might conflict with another, requiring genuine wisdom and discernment to navigate.");
+    }
+    
+    if (qualitySettings.competingValues) {
+      instructions.push("COMPETING VALUES: Show moments where characters must choose between two good things, or where different aspects of faith seem to pull in different directions. Let characters wrestle with genuine ethical dilemmas.");
+    }
+    
+    if (qualitySettings.imperfectTiming) {
+      instructions.push("REALISTIC TIMING: Help and wisdom don't always arrive at the perfect moment. Sometimes characters must wait, sometimes help comes too late, sometimes they must figure things out independently. Avoid convenient mentor speeches that solve problems instantly.");
+    }
+    
+    if (qualitySettings.allowSelfDiscovery) {
+      instructions.push("SELF-DISCOVERY: Let characters occasionally solve problems through their own insight, struggle, and growth rather than always receiving wisdom from mentors. Show independent spiritual development and personal revelation.");
+    }
+    
+    if (qualitySettings.varySentenceStructure) {
+      instructions.push("SENTENCE VARIETY: Dramatically vary sentence length and structure. Use short, punchy sentences for impact. Create flowing, complex sentences for description. Mix simple and elaborate constructions for natural rhythm.");
+    }
+    
+    if (qualitySettings.dramaticPacing) {
+      instructions.push("DRAMATIC PACING: Use sentence fragments for emphasis. Employ run-on sentences for building tension or excitement. Vary paragraph length to control pacing - short paragraphs for quick action, longer ones for reflection.");
+    }
+    
+    if (qualitySettings.includeSuprises) {
+      instructions.push("GENUINE SURPRISES: Include plot developments that readers cannot easily predict. Introduce unexpected character reactions, surprising solutions to problems, or events that don't follow the obvious allegorical pattern.");
+    }
+    
+    if (qualitySettings.organicPlotTwists) {
+      instructions.push("ORGANIC ELEMENTS: Occasionally introduce characters, events, or plot elements that don't fit neatly into the allegorical framework. Let some story aspects exist for narrative richness rather than symbolic purpose.");
+    }
+    
+    if (qualitySettings.complexAntagonist) {
+      instructions.push("COMPLEX ANTAGONIST: Develop the antagonist with compelling backstory and understandable motivations. They should have reasons for their beliefs that make sense from their perspective, even if they're ultimately wrong.");
+    }
+    
+    if (qualitySettings.sympatheticVillain) {
+      instructions.push("SYMPATHETIC ANTAGONIST: Make the antagonist occasionally sympathetic or relatable. Perhaps they've experienced suffering that explains their perspective, or they genuinely believe their approach would help people, despite being misguided.");
+    }
+    
+    return instructions.length > 0 ? 
+      `\n\nWRITING QUALITY ENHANCEMENT INSTRUCTIONS:\n${instructions.map(inst => `• ${inst}`).join('\n')}\n` : 
+      '';
   };
 
   if (result) {
@@ -1869,6 +2012,271 @@ const AutoGenerate = ({ conflictData, apiConfig, onSuccess, onError, onNotificat
                     />
                     Generate character notes and outline
                   </label>
+                </div>
+              </div>
+
+              {/* Writing Quality Enhancement Settings */}
+              <div className="generation-preferences quality-settings">
+                <h3>🎨 Writing Quality Enhancement</h3>
+                <p className="quality-description">
+                  Advanced settings to make AI writing more natural, varied, and engaging
+                </p>
+                
+                <div className="quality-categories">
+                  <div className="quality-category">
+                    <h4>📖 Narrative Style</h4>
+                    <div className="preferences-checkboxes">
+                      <label className="form-checkbox">
+                        <input
+                          type="checkbox"
+                          checked={qualitySettings.varyTheologicalExplanations}
+                          onChange={(e) => setQualitySettings(prev => ({ ...prev, varyTheologicalExplanations: e.target.checked }))}
+                        />
+                        Vary theological explanations (avoid repetitive phrasing)
+                      </label>
+                      
+                      <label className="form-checkbox">
+                        <input
+                          type="checkbox"
+                          checked={qualitySettings.showDontTellTheology}
+                          onChange={(e) => setQualitySettings(prev => ({ ...prev, showDontTellTheology: e.target.checked }))}
+                        />
+                        Show theology through character experiences
+                      </label>
+                      
+                      <label className="form-checkbox">
+                        <input
+                          type="checkbox"
+                          checked={qualitySettings.allowUnevenPacing}
+                          onChange={(e) => setQualitySettings(prev => ({ ...prev, allowUnevenPacing: e.target.checked }))}
+                        />
+                        Allow uneven pacing and focus distribution
+                      </label>
+                      
+                      <label className="form-checkbox">
+                        <input
+                          type="checkbox"
+                          checked={qualitySettings.imperfectTiming}
+                          onChange={(e) => setQualitySettings(prev => ({ ...prev, imperfectTiming: e.target.checked }))}
+                        />
+                        Realistic timing (help doesn't always arrive perfectly)
+                      </label>
+                    </div>
+                  </div>
+
+                  <div className="quality-category">
+                    <h4>👥 Character Development</h4>
+                    <div className="preferences-checkboxes">
+                      <label className="form-checkbox">
+                        <input
+                          type="checkbox"
+                          checked={qualitySettings.includeSetbacks}
+                          onChange={(e) => setQualitySettings(prev => ({ ...prev, includeSetbacks: e.target.checked }))}
+                        />
+                        Include realistic setbacks and struggles
+                      </label>
+                      
+                      <label className="form-checkbox">
+                        <input
+                          type="checkbox"
+                          checked={qualitySettings.showInternalConflict}
+                          onChange={(e) => setQualitySettings(prev => ({ ...prev, showInternalConflict: e.target.checked }))}
+                        />
+                        Show internal conflict rather than stating it
+                      </label>
+                      
+                      <label className="form-checkbox">
+                        <input
+                          type="checkbox"
+                          checked={qualitySettings.allowBacksliding}
+                          onChange={(e) => setQualitySettings(prev => ({ ...prev, allowBacksliding: e.target.checked }))}
+                        />
+                        Allow characters to backslide or doubt
+                      </label>
+                      
+                      <label className="form-checkbox">
+                        <input
+                          type="checkbox"
+                          checked={qualitySettings.varyCharacterFocus}
+                          onChange={(e) => setQualitySettings(prev => ({ ...prev, varyCharacterFocus: e.target.checked }))}
+                        />
+                        Vary character development speeds and focus
+                      </label>
+                    </div>
+                  </div>
+
+                  <div className="quality-category">
+                    <h4>💬 Dialogue & Voice</h4>
+                    <div className="preferences-checkboxes">
+                      <label className="form-checkbox">
+                        <input
+                          type="checkbox"
+                          checked={qualitySettings.uniqueVoices}
+                          onChange={(e) => setQualitySettings(prev => ({ ...prev, uniqueVoices: e.target.checked }))}
+                        />
+                        Give each character a distinctive voice
+                      </label>
+                      
+                      <label className="form-checkbox">
+                        <input
+                          type="checkbox"
+                          checked={qualitySettings.characterSpecificSpeech}
+                          onChange={(e) => setQualitySettings(prev => ({ ...prev, characterSpecificSpeech: e.target.checked }))}
+                        />
+                        Use character-specific metaphors and speech patterns
+                      </label>
+                      
+                      <label className="form-checkbox">
+                        <input
+                          type="checkbox"
+                          checked={qualitySettings.varySentenceStructure}
+                          onChange={(e) => setQualitySettings(prev => ({ ...prev, varySentenceStructure: e.target.checked }))}
+                        />
+                        Vary sentence length and structure dramatically
+                      </label>
+                      
+                      <label className="form-checkbox">
+                        <input
+                          type="checkbox"
+                          checked={qualitySettings.dramaticPacing}
+                          onChange={(e) => setQualitySettings(prev => ({ ...prev, dramaticPacing: e.target.checked }))}
+                        />
+                        Use sentence fragments and run-ons for effect
+                      </label>
+                    </div>
+                  </div>
+
+                  <div className="quality-category">
+                    <h4>🌟 Depth & Complexity</h4>
+                    <div className="preferences-checkboxes">
+                      <label className="form-checkbox">
+                        <input
+                          type="checkbox"
+                          checked={qualitySettings.enhancedSensoryDetails}
+                          onChange={(e) => setQualitySettings(prev => ({ ...prev, enhancedSensoryDetails: e.target.checked }))}
+                        />
+                        Include specific sensory details (sounds, smells, textures)
+                      </label>
+                      
+                      <label className="form-checkbox">
+                        <input
+                          type="checkbox"
+                          checked={qualitySettings.showEmotionsPhysically}
+                          onChange={(e) => setQualitySettings(prev => ({ ...prev, showEmotionsPhysically: e.target.checked }))}
+                        />
+                        Show emotions through physical sensations
+                      </label>
+                      
+                      <label className="form-checkbox">
+                        <input
+                          type="checkbox"
+                          checked={qualitySettings.includeMoralComplexity}
+                          onChange={(e) => setQualitySettings(prev => ({ ...prev, includeMoralComplexity: e.target.checked }))}
+                        />
+                        Include genuine moral ambiguity and difficult choices
+                      </label>
+                      
+                      <label className="form-checkbox">
+                        <input
+                          type="checkbox"
+                          checked={qualitySettings.competingValues}
+                          onChange={(e) => setQualitySettings(prev => ({ ...prev, competingValues: e.target.checked }))}
+                        />
+                        Show competing values and ethical dilemmas
+                      </label>
+                    </div>
+                  </div>
+
+                  <div className="quality-category">
+                    <h4>🎲 Surprises & Antagonist</h4>
+                    <div className="preferences-checkboxes">
+                      <label className="form-checkbox">
+                        <input
+                          type="checkbox"
+                          checked={qualitySettings.includeSuprises}
+                          onChange={(e) => setQualitySettings(prev => ({ ...prev, includeSuprises: e.target.checked }))}
+                        />
+                        Include genuinely surprising plot developments
+                      </label>
+                      
+                      <label className="form-checkbox">
+                        <input
+                          type="checkbox"
+                          checked={qualitySettings.organicPlotTwists}
+                          onChange={(e) => setQualitySettings(prev => ({ ...prev, organicPlotTwists: e.target.checked }))}
+                        />
+                        Add characters who don't fit allegorical framework
+                      </label>
+                      
+                      <label className="form-checkbox">
+                        <input
+                          type="checkbox"
+                          checked={qualitySettings.allowSelfDiscovery}
+                          onChange={(e) => setQualitySettings(prev => ({ ...prev, allowSelfDiscovery: e.target.checked }))}
+                        />
+                        Let characters solve problems without mentor help
+                      </label>
+                      
+                      <label className="form-checkbox">
+                        <input
+                          type="checkbox"
+                          checked={qualitySettings.complexAntagonist}
+                          onChange={(e) => setQualitySettings(prev => ({ ...prev, complexAntagonist: e.target.checked }))}
+                        />
+                        Give antagonist compelling backstory and motivations
+                      </label>
+                      
+                      <label className="form-checkbox">
+                        <input
+                          type="checkbox"
+                          checked={qualitySettings.sympatheticVillain}
+                          onChange={(e) => setQualitySettings(prev => ({ ...prev, sympatheticVillain: e.target.checked }))}
+                        />
+                        Make antagonist occasionally sympathetic despite being wrong
+                      </label>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="quality-presets">
+                  <h4>Quick Presets:</h4>
+                  <div className="preset-buttons">
+                    <button 
+                      className="btn btn-small" 
+                      onClick={() => setQualitySettings(Object.fromEntries(Object.keys(qualitySettings).map(key => [key, true])))}
+                    >
+                      ✨ Enable All
+                    </button>
+                    <button 
+                      className="btn btn-small" 
+                      onClick={() => setQualitySettings(Object.fromEntries(Object.keys(qualitySettings).map(key => [key, false])))}
+                    >
+                      📝 Disable All (Classic AI)
+                    </button>
+                    <button 
+                      className="btn btn-small" 
+                      onClick={() => {
+                        const essentialSettings = {
+                          varyTheologicalExplanations: true,
+                          showDontTellTheology: true,
+                          includeSetbacks: true,
+                          uniqueVoices: true,
+                          enhancedSensoryDetails: true,
+                          varySentenceStructure: true
+                        };
+                        // Set all others to false
+                        const allSettings = Object.fromEntries(
+                          Object.keys(qualitySettings).map(key => [
+                            key, 
+                            essentialSettings.hasOwnProperty(key) ? essentialSettings[key] : false
+                          ])
+                        );
+                        setQualitySettings(allSettings);
+                      }}
+                    >
+                      🎯 Essential Only
+                    </button>
+                  </div>
                 </div>
               </div>
 
