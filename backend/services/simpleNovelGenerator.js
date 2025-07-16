@@ -64,8 +64,8 @@ class SimpleNovelGenerator {
       qualitySettings = {}
     } = settings;
 
-    // Generate quality instructions based on settings
-    const qualityInstructions = this.generateQualityInstructions(qualitySettings);
+    // Generate quality instructions based on settings - TEMPORARILY DISABLED FOR DEBUG
+    const qualityInstructions = ''; // this.generateQualityInstructions(qualitySettings);
 
     // IMPROVED PROMPT - More explicit JSON formatting instructions + quality enhancements
     const prompt = `You are a professional novel outline generator. Create a detailed ${chapterCount} chapter outline for a ${genre} novel.
