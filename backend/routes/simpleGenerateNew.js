@@ -53,7 +53,10 @@ router.post('/outline', async (req, res) => {
     console.log('📝 Outline request received:', {
       bodyKeys: Object.keys(req.body),
       premiseLength: req.body.premise?.length,
-      settings: req.body.settings
+      settings: req.body.settings,
+      timestamp: new Date().toISOString(),
+      userAgent: req.get('User-Agent'),
+      origin: req.get('Origin')
     });
     
     const { premise, settings = {} } = req.body;
@@ -62,26 +65,88 @@ router.post('/outline', async (req, res) => {
       console.log('❌ No premise provided');
       return res.status(400).json({ 
         success: false, 
-        error: 'Premise is required' 
+        error: 'Premise is required',
+        errorCode: 'MISSING_PREMISE',
+        details: {
+          received: typeof premise,
+          bodyKeys: Object.keys(req.body)
+        }
+      });
+    }
+    
+    if (premise.length < 50) {
+      console.log('❌ Premise too short:', premise.length, 'characters');
+      return res.status(400).json({
+        success: false,
+        error: 'Premise must be at least 50 characters long',
+        errorCode: 'PREMISE_TOO_SHORT',
+        details: {
+          received: premise.length,
+          minimum: 50
+        }
       });
     }
     
     console.log('🚀 Starting outline generation...');
+    const startTime = Date.now();
+    
     const outline = await generator.generateOutline(premise, settings);
-    console.log('✅ Outline generated successfully:', outline.length, 'chapters');
+    
+    const duration = Date.now() - startTime;
+    console.log('✅ Outline generated successfully:', {
+      chapters: outline.length,
+      duration: `${duration}ms`,
+      averageWordsPerChapter: outline.reduce((sum, ch) => sum + (ch.wordTarget || 0), 0) / outline.length
+    });
     
     res.json({
       success: true,
-      outline: outline
+      outline: outline,
+      metadata: {
+        generatedAt: new Date().toISOString(),
+        duration: `${duration}ms`,
+        totalChapters: outline.length,
+        estimatedWords: outline.reduce((sum, ch) => sum + (ch.wordTarget || 0), 0)
+      }
     });
     
   } catch (error) {
-    console.error('❌ Outline error:', error);
-    console.error('Error stack:', error.stack);
+    console.error('❌ Outline error:', {
+      message: error.message,
+      stack: error.stack,
+      timestamp: new Date().toISOString(),
+      premise: req.body.premise ? `${req.body.premise.substring(0, 100)}...` : 'undefined',
+      settings: req.body.settings
+    });
+    
+    // Determine error type and provide specific details
+    let errorDetails = {
+      timestamp: new Date().toISOString(),
+      endpoint: '/outline',
+      method: 'POST'
+    };
+    
+    if (error.message.includes('API key')) {
+      errorDetails.errorCode = 'OPENAI_API_KEY_ERROR';
+      errorDetails.suggestion = 'Check OpenAI API key configuration';
+    } else if (error.message.includes('parse') || error.message.includes('JSON')) {
+      errorDetails.errorCode = 'JSON_PARSE_ERROR';
+      errorDetails.suggestion = 'OpenAI response was not valid JSON - try again';
+    } else if (error.message.includes('timeout')) {
+      errorDetails.errorCode = 'TIMEOUT_ERROR';
+      errorDetails.suggestion = 'Request timed out - try with a shorter premise';
+    } else if (error.message.includes('rate limit')) {
+      errorDetails.errorCode = 'RATE_LIMIT_ERROR';
+      errorDetails.suggestion = 'OpenAI rate limit exceeded - wait and try again';
+    } else {
+      errorDetails.errorCode = 'UNKNOWN_ERROR';
+      errorDetails.suggestion = 'An unexpected error occurred';
+    }
+    
     res.status(500).json({
       success: false,
       error: error.message,
-      details: error.stack
+      details: errorDetails
     });
   }
 });

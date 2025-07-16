@@ -7,7 +7,7 @@ class APIService {
   constructor() {
     this.defaultConfig = {
       baseUrl: this.getDefaultBaseUrl(),
-      timeout: 30000,
+      timeout: 120000, // 2 minutes default timeout for AI generation
       retryAttempts: 3,
       retryDelay: 1000
     };
@@ -103,11 +103,37 @@ class APIService {
 
         // Handle response
         if (!response.ok) {
-          throw new APIError(
+          // Get response body for better error details
+          let errorDetails = await this.safeResponseText(response);
+          let parsedError = null;
+          
+          try {
+            parsedError = JSON.parse(errorDetails);
+          } catch {
+            // Not JSON, use as is
+          }
+          
+          const apiError = new APIError(
             `HTTP ${response.status}: ${response.statusText}`,
             response.status,
-            await this.safeResponseText(response)
+            parsedError || errorDetails
           );
+          
+          // Add specific error context
+          apiError.url = url;
+          apiError.method = method;
+          apiError.timestamp = new Date().toISOString();
+          
+          console.error('❌ API Error Details:', {
+            status: response.status,
+            statusText: response.statusText,
+            url: url,
+            method: method,
+            errorDetails: parsedError || errorDetails,
+            headers: Object.fromEntries(response.headers.entries())
+          });
+          
+          throw apiError;
         }
 
         // Parse response
@@ -203,6 +229,7 @@ class APIService {
         premise: synopsis,
         settings 
       }),
+      timeout: 180000, // 3 minutes for outline generation
       signal
     });
     
@@ -283,6 +310,7 @@ class APIService {
     return this.makeRequest('/simple-generate-new/outline', {
       method: 'POST',
       body: JSON.stringify({ premise, settings }),
+      timeout: 180000 // 3 minutes for outline generation
     });
   }
 
@@ -292,7 +320,7 @@ class APIService {
     return this.makeRequest('/simple-generate-new/full-novel', {
       method: 'POST',
       body: JSON.stringify({ premise, settings }),
-      timeout: 300000, // 5 minutes timeout for full novel generation
+      timeout: 600000, // 10 minutes timeout for full novel generation
       signal
     });
   }
@@ -346,10 +374,64 @@ class APIError extends Error {
     this.name = 'APIError';
     this.status = status;
     this.details = details;
+    this.timestamp = new Date().toISOString();
   }
 
   toString() {
     return `${this.name}: ${this.message} (Status: ${this.status})`;
+  }
+
+  getDetailedInfo() {
+    return {
+      error: this.message,
+      status: this.status,
+      timestamp: this.timestamp,
+      details: this.details,
+      url: this.url,
+      method: this.method,
+      suggestions: this.getSuggestions()
+    };
+  }
+
+  getSuggestions() {
+    const suggestions = [];
+    
+    if (this.status === 0) {
+      suggestions.push('Check your internet connection');
+      suggestions.push('Verify the backend server is running');
+    } else if (this.status === 400) {
+      suggestions.push('Check the request data format');
+      suggestions.push('Ensure all required fields are provided');
+    } else if (this.status === 401) {
+      suggestions.push('Check API authentication');
+      suggestions.push('Verify API keys are correctly set');
+    } else if (this.status === 403) {
+      suggestions.push('Check API permissions');
+      suggestions.push('Verify you have access to this resource');
+    } else if (this.status === 404) {
+      suggestions.push('Check the API endpoint URL');
+      suggestions.push('Verify the backend is deployed correctly');
+    } else if (this.status === 429) {
+      suggestions.push('You are being rate limited');
+      suggestions.push('Wait a moment and try again');
+    } else if (this.status >= 500) {
+      suggestions.push('Server error - try again in a moment');
+      suggestions.push('Check backend logs for more details');
+    }
+    
+    // Add specific suggestions based on error details
+    if (this.details && typeof this.details === 'object') {
+      if (this.details.errorCode === 'MISSING_API_KEY') {
+        suggestions.push('Set OPENAI_API_KEY environment variable');
+      } else if (this.details.errorCode === 'JSON_PARSE_ERROR') {
+        suggestions.push('AI response was malformed - try again');
+      } else if (this.details.errorCode === 'TIMEOUT_ERROR') {
+        suggestions.push('Try with a shorter premise');
+        suggestions.push('Use batch mode instead of streaming');
+      }
+    }
+    
+    return suggestions;
   }
 }
 

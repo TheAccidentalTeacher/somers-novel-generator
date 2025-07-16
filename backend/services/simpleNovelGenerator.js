@@ -16,9 +16,35 @@ class SimpleNovelGenerator {
   getOpenAIClient() {
     if (!this.openai) {
       if (!process.env.OPENAI_API_KEY) {
-        throw new Error('OpenAI API key is not configured. Please set OPENAI_API_KEY environment variable.');
+        const error = new Error('OpenAI API key is not configured. Please set OPENAI_API_KEY environment variable.');
+        error.code = 'MISSING_API_KEY';
+        error.details = {
+          environmentVariables: Object.keys(process.env).filter(key => key.includes('OPENAI')),
+          suggestion: 'Set OPENAI_API_KEY in your environment variables'
+        };
+        throw error;
       }
-      this.openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+      
+      if (process.env.OPENAI_API_KEY.length < 20) {
+        const error = new Error('OpenAI API key appears to be invalid (too short).');
+        error.code = 'INVALID_API_KEY';
+        error.details = {
+          keyLength: process.env.OPENAI_API_KEY.length,
+          expected: 'Should start with sk- and be at least 20 characters',
+          suggestion: 'Check your OpenAI API key format'
+        };
+        throw error;
+      }
+      
+      try {
+        this.openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+        console.log('✅ OpenAI client initialized successfully');
+      } catch (initError) {
+        const error = new Error(`Failed to initialize OpenAI client: ${initError.message}`);
+        error.code = 'CLIENT_INIT_FAILED';
+        error.originalError = initError;
+        throw error;
+      }
     }
     return this.openai;
   }
@@ -64,7 +90,14 @@ IMPORTANT: You must respond with ONLY a valid JSON array in this exact format:
 Create ${chapterCount} chapters. Return ONLY the JSON array, no other text.`;
 
     try {
-      console.log('🤖 Calling OpenAI for outline generation...');
+      console.log('🤖 Calling OpenAI for outline generation...', {
+        model: 'gpt-4o-mini',
+        promptLength: prompt.length,
+        maxTokens: 2000,
+        chapterCount,
+        timestamp: new Date().toISOString()
+      });
+      
       const response = await this.getOpenAIClient().chat.completions.create({
         model: 'gpt-4o-mini', // CHEAP model for outlining - just structure
         messages: [{ role: 'user', content: prompt }],
@@ -72,10 +105,23 @@ Create ${chapterCount} chapters. Return ONLY the JSON array, no other text.`;
         temperature: 0.3 // Lower temp for better JSON compliance
       });
 
+      if (!response || !response.choices || !response.choices[0]) {
+        throw new Error('Invalid response structure from OpenAI');
+      }
+
       const content = response.choices[0].message.content.trim();
-      console.log('🤖 OpenAI response received:', content.length, 'characters');
-      console.log('🤖 First 200 chars:', content.substring(0, 200));
-      console.log('🤖 Last 200 chars:', content.substring(content.length - 200));
+      console.log('🤖 OpenAI response received:', {
+        contentLength: content.length,
+        finishReason: response.choices[0].finish_reason,
+        usage: response.usage,
+        firstChars: content.substring(0, 200),
+        lastChars: content.substring(content.length - 200)
+      });
+
+      // Check for truncated response
+      if (response.choices[0].finish_reason === 'length') {
+        console.warn('⚠️ OpenAI response was truncated due to token limit');
+      }
 
       // Try to extract JSON - be more flexible with the parsing
       let jsonData;
@@ -83,49 +129,131 @@ Create ${chapterCount} chapters. Return ONLY the JSON array, no other text.`;
       // First, try to parse the entire content as JSON
       try {
         jsonData = JSON.parse(content);
+        console.log('✅ Successfully parsed full content as JSON');
       } catch (parseError) {
-        console.log('❌ Full content not JSON, trying to extract array...');
+        console.log('❌ Full content not JSON, trying to extract array...', {
+          parseError: parseError.message,
+          contentPreview: content.substring(0, 500)
+        });
         
         // Try to find JSON array in the content
         const jsonMatch = content.match(/\[[\s\S]*\]/);
         
         if (!jsonMatch) {
-          console.error('❌ No JSON array found in response');
-          throw new Error('No JSON array found in OpenAI response');
+          const error = new Error('No JSON array found in OpenAI response');
+          error.code = 'NO_JSON_ARRAY';
+          error.details = {
+            responseContent: content,
+            contentLength: content.length,
+            searchPatterns: ['[...]', 'array', 'json'],
+            suggestion: 'OpenAI may have returned non-JSON text'
+          };
+          throw error;
         }
         
         try {
           jsonData = JSON.parse(jsonMatch[0]);
+          console.log('✅ Successfully extracted and parsed JSON array');
         } catch (extractError) {
-          console.error('❌ Failed to parse extracted JSON:', extractError);
-          throw new Error('Failed to parse extracted JSON from OpenAI response');
+          const error = new Error('Failed to parse extracted JSON from OpenAI response');
+          error.code = 'JSON_PARSE_FAILED';
+          error.details = {
+            extractedJson: jsonMatch[0],
+            parseError: extractError.message,
+            originalContent: content,
+            suggestion: 'Try again - OpenAI response was malformed'
+          };
+          throw error;
         }
       }
 
       // Validate the structure
       if (!Array.isArray(jsonData)) {
-        throw new Error('Response is not an array');
+        const error = new Error('OpenAI response is not an array');
+        error.code = 'INVALID_RESPONSE_TYPE';
+        error.details = {
+          receivedType: typeof jsonData,
+          expected: 'array',
+          content: jsonData,
+          suggestion: 'Try again - OpenAI response should be an array of chapters'
+        };
+        throw error;
       }
 
       if (jsonData.length === 0) {
-        throw new Error('Empty outline array received');
+        const error = new Error('Empty outline array received from OpenAI');
+        error.code = 'EMPTY_OUTLINE';
+        error.details = {
+          requestedChapters: chapterCount,
+          received: 0,
+          suggestion: 'Try again or adjust the premise'
+        };
+        throw error;
       }
 
       // Validate each chapter has required fields
+      const invalidChapters = [];
       for (let i = 0; i < jsonData.length; i++) {
         const chapter = jsonData[i];
-        if (!chapter.number || !chapter.title || !chapter.summary) {
-          console.error('❌ Invalid chapter structure:', chapter);
-          throw new Error(`Chapter ${i + 1} missing required fields`);
+        const missing = [];
+        
+        if (!chapter.number) missing.push('number');
+        if (!chapter.title) missing.push('title');
+        if (!chapter.summary) missing.push('summary');
+        
+        if (missing.length > 0) {
+          invalidChapters.push({
+            index: i,
+            chapter: chapter,
+            missingFields: missing
+          });
         }
       }
 
-      console.log('✅ Outline validation passed:', jsonData.length, 'chapters');
+      if (invalidChapters.length > 0) {
+        const error = new Error(`${invalidChapters.length} chapters missing required fields`);
+        error.code = 'INVALID_CHAPTER_STRUCTURE';
+        error.details = {
+          invalidChapters: invalidChapters,
+          requiredFields: ['number', 'title', 'summary'],
+          suggestion: 'Try again - some chapters are incomplete'
+        };
+        throw error;
+      }
+
+      console.log('✅ Outline validation passed:', {
+        chapters: jsonData.length,
+        averageWordTarget: jsonData.reduce((sum, ch) => sum + (ch.wordTarget || 0), 0) / jsonData.length,
+        titles: jsonData.map(ch => ch.title)
+      });
+      
       return jsonData;
       
     } catch (error) {
-      console.error('❌ Outline generation error:', error);
-      throw new Error(`Outline generation failed: ${error.message}`);
+      // Enhanced error logging with context
+      console.error('❌ Outline generation error:', {
+        errorMessage: error.message,
+        errorCode: error.code || 'UNKNOWN',
+        errorStack: error.stack,
+        premiseLength: premise.length,
+        settings: settings,
+        timestamp: new Date().toISOString()
+      });
+      
+      // Re-throw with additional context if not already enhanced
+      if (!error.code) {
+        const enhancedError = new Error(`Outline generation failed: ${error.message}`);
+        enhancedError.code = 'GENERATION_FAILED';
+        enhancedError.originalError = error;
+        enhancedError.details = {
+          premise: premise.substring(0, 200) + '...',
+          settings: settings,
+          timestamp: new Date().toISOString()
+        };
+        throw enhancedError;
+      }
+      
+      throw error;
     }
   }
 

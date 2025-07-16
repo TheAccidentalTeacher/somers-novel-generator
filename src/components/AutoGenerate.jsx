@@ -353,7 +353,7 @@ const AutoGenerate = ({ conflictData, apiConfig, onSuccess, onError, onNotificat
     if (apiConfig) {
       apiService.updateConfig({
         baseUrl: apiConfig.baseUrl,
-        timeout: apiConfig.timeout || 30000
+        timeout: apiConfig.timeout || 120000 // 2 minutes default
       });
     }
   }, [apiConfig]);
@@ -694,7 +694,7 @@ const AutoGenerate = ({ conflictData, apiConfig, onSuccess, onError, onNotificat
                 genre: storyData.genre || 'fantasy'
               }
             }),
-            timeout: 120000 // 2 minutes per chapter for more complex chapters
+            timeout: 300000 // 5 minutes per chapter for complex chapters
           });
           
           if (chapterResponse.success && chapterResponse.chapter) {
@@ -807,7 +807,7 @@ const AutoGenerate = ({ conflictData, apiConfig, onSuccess, onError, onNotificat
 
       // Create a timeout promise to prevent infinite hanging
       const timeoutPromise = new Promise((_, reject) => {
-        setTimeout(() => reject(new Error('Outline creation timed out after 2 minutes')), 120000);
+        setTimeout(() => reject(new Error('Outline creation timed out after 5 minutes')), 300000);
       });
 
       // Race between API call and timeout
@@ -828,12 +828,44 @@ const AutoGenerate = ({ conflictData, apiConfig, onSuccess, onError, onNotificat
     } catch (error) {
       console.error('Outline creation error:', error);
       
+      // Enhanced error logging and display
+      const errorInfo = {
+        message: error.message,
+        timestamp: new Date().toISOString(),
+        type: error.name || 'Error',
+        status: error.status || 0,
+        details: error.details || null,
+        stack: error.stack
+      };
+      
+      console.error('❌ Detailed Error Info:', errorInfo);
+      
       // Don't update error state if this was intentionally aborted
       if (error.name !== 'AbortError' && !abortControllerRef.current?.signal.aborted) {
         setError(error);
         setCurrentProcess('');
         setGenerationPhase('setup');
-        addLog(`Outline creation failed: ${error.message}`, 'error');
+        
+        // Create detailed error message
+        let errorMessage = `Outline creation failed: ${error.message}`;
+        
+        if (error.status) {
+          errorMessage += ` (HTTP ${error.status})`;
+        }
+        
+        if (error.details && error.details.errorCode) {
+          errorMessage += ` [${error.details.errorCode}]`;
+        }
+        
+        // Add suggestions if available
+        if (error.getSuggestions && typeof error.getSuggestions === 'function') {
+          const suggestions = error.getSuggestions();
+          if (suggestions.length > 0) {
+            errorMessage += `\n\nSuggestions:\n• ${suggestions.join('\n• ')}`;
+          }
+        }
+        
+        addLog(errorMessage, 'error');
         onError(error);
       } else if (error.name === 'AbortError') {
         addLog('Outline creation was cancelled', 'info');
