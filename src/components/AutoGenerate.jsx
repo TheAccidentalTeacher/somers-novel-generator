@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import LoadingSpinner from './LoadingSpinner';
-import apiService, { generateNovelWithProgress } from '../services/apiService.js';
+import apiService from '../services/apiService.js';
 import './AutoGenerate.css';
 
 // Advanced Novel Generator v2.0 - Updated 2025-07-14
@@ -33,7 +33,7 @@ const AutoGenerate = ({ conflictData, apiConfig, onSuccess, onError, onNotificat
   const [currentProcess, setCurrentProcess] = useState('');
   const [isCreatingOutline, setIsCreatingOutline] = useState(false);
   
-  const [generationMode, setGenerationMode] = useState('batch'); // Always use batch now - more reliable
+  const [generationMode, setGenerationMode] = useState('batch'); // 'batch' or 'stream'
   
   // Add state for tracking completed chapters for recovery
   const [completedChapters, setCompletedChapters] = useState([]);
@@ -508,9 +508,13 @@ const AutoGenerate = ({ conflictData, apiConfig, onSuccess, onError, onNotificat
         timestamp: new Date().toISOString()
       };
 
-      // Check generation mode and use new progress-based approach
-      addLog('🔄 Starting batch generation with progress updates...', 'info');
-      await startBatchGeneration(storyData);
+      // Check generation mode and use appropriate approach
+      if (generationMode === 'stream') {
+        addLog('🎥 Starting live streaming generation...', 'info');
+        await startStreamingGeneration(storyData);
+      } else {
+        await startBatchGeneration(storyData);
+      }
 
     } catch (error) {
       console.error('Generation start error:', error);
@@ -765,72 +769,140 @@ const AutoGenerate = ({ conflictData, apiConfig, onSuccess, onError, onNotificat
       }
       
       const totalChapters = outline.length;
+      const remainingChapters = totalChapters - startFromChapter;
       
-      addLog(`🔄 Starting reliable batch generation for ${totalChapters} chapters...`, 'info');
-      
-      // Prepare chapters to generate (skip already completed ones)
-      const chaptersToGenerate = outline.slice(startFromChapter);
-      
-      // Use the new progress-based generation
-      const novelData = {
-        title: storyData.title,
-        synopsis: storyData.synopsis,
-        genre: storyData.genre || 'fantasy',
-        outline: chaptersToGenerate,
-        startFromChapter
-      };
-      
-      const progressCallback = (progressData) => {
-        const { currentChapter, totalChapters, status } = progressData;
-        setProgress(20 + ((currentChapter / totalChapters) * 70));
-        addLog(`${status} (${currentChapter}/${totalChapters})`, 'info');
-      };
-      
-      const result = await generateNovelWithProgress({
-        ...novelData,
-        qualitySettings: { ...qualitySettings }
-      }, progressCallback);
-      
-      // Combine existing chapters with new ones
-      const allChapters = [...existingChapters, ...result.chapters];
-      
-      setResult({
-        title: storyData.title,
-        synopsis: storyData.synopsis,
-        chapters: allChapters
-      });
-      
-      setProgress(100);
-      setIsGenerating(false);
-      setGenerationPhase('complete');
-      
-      addLog(`✅ Novel generation completed! Generated ${allChapters.length} chapters.`, 'success');
-      onNotification('Novel generation completed successfully!', 'success');
-      
-    } catch (error) {
-      console.error('Batch generation error:', error);
-      addLog(`❌ Generation error: ${error.message}`, 'error');
-      
-      // Save any partial results
-      if (error.novel && error.novel.chapters) {
-        const partialChapters = [...existingChapters, ...error.novel.chapters];
-        setResult({
-          title: storyData.title,
-          synopsis: storyData.synopsis,
-          chapters: partialChapters
-        });
-        addLog(`💾 Saved ${partialChapters.length} chapters before error`, 'warning');
+      if (startFromChapter > 0) {
+        addLog(`🔄 Resuming batch generation from Chapter ${startFromChapter + 1} (${remainingChapters} chapters remaining)`, 'info');
+      } else {
+        addLog(`📝 Using existing outline with ${outline.length} chapters`, 'info');
       }
       
-      setError(error);
-      setIsGenerating(false);
-      onError(error);
+      // Set initial progress based on completed chapters
+      const initialProgress = 20 + (startFromChapter / totalChapters * 70);
+      setProgress(initialProgress);
+      
+      // Start with existing chapters (from streaming or previous batch)
+      const chapters = [...existingChapters];
+      
+      addLog(`📚 Generating remaining chapters (${startFromChapter + 1} to ${totalChapters})...`, 'info');
+      
+      for (let i = startFromChapter; i < totalChapters; i++) {
+        const chapterOutline = outline[i];
+        addLog(`Writing Chapter ${i + 1}: ${chapterOutline.title}...`, 'info');
+        
+        try {
+          // Generate individual chapter with shorter timeout
+          const chapterResponse = await apiService.makeRequest('/simple-generate-new/chapter', {
+            method: 'POST',
+            body: JSON.stringify({
+              chapterOutline,
+              context: {
+                previousChapters: chapters,
+                fullPremise: storyData.synopsis,
+                genre: storyData.genre || 'fantasy',
+                qualitySettings: qualitySettings // Move quality settings into context where backend expects it
+              },
+              preferences: preferences
+            }),
+            timeout: 300000 // 5 minutes per chapter for complex chapters
+          });
+          
+          if (chapterResponse.success && chapterResponse.chapter) {
+            // Ensure proper chapter numbering and ordering
+            const chapter = {
+              ...chapterResponse.chapter,
+              number: i + 1,
+              title: chapterResponse.chapter.title || `Chapter ${i + 1}`,
+              chapterIndex: i
+            };
+            
+            chapters.push(chapter);
+            
+            // Update completedChapters state for recovery tracking
+            setCompletedChapters(prev => {
+              const updated = [...prev];
+              // Ensure we don't duplicate chapters
+              const existingIndex = updated.findIndex(ch => ch.number === chapter.number);
+              if (existingIndex >= 0) {
+                updated[existingIndex] = chapter;
+              } else {
+                updated.push(chapter);
+              }
+              return updated.sort((a, b) => a.number - b.number);
+            });
+            
+            const progressPercent = 20 + Math.round((i + 1) / totalChapters * 70); // 20-90%
+            setProgress(progressPercent);
+            addLog(`✅ Chapter ${i + 1} completed (${chapter.wordCount || 'unknown'} words)`, 'success');
+            
+            // Update result with current progress
+            const currentResult = {
+              outline: outline,
+              chapters: [...chapters],
+              stats: {
+                totalWords: chapters.reduce((sum, ch) => sum + (ch.wordCount || 0), 0),
+                chapterCount: chapters.length
+              }
+            };
+            setResult(currentResult);
+            
+          } else {
+            throw new Error(`Failed to generate chapter ${i + 1}`);
+          }
+          
+        } catch (chapterError) {
+          addLog(`❌ Error generating chapter ${i + 1}: ${chapterError.message}`, 'error');
+          // Continue with remaining chapters rather than failing completely
+          addLog(`🔄 Continuing with next chapter...`, 'info');
+        }
+      }
+      
+      // Compile final result with better formatting
+      addLog('📖 Step 3: Compiling final novel...', 'info');
+      setProgress(95);
+      
+      // Sort chapters by number to ensure correct order
+      chapters.sort((a, b) => (a.number || 0) - (b.number || 0));
+      
+      // Create full novel text with proper formatting
+      const fullNovelText = chapters
+        .map(ch => {
+          const chapterTitle = ch.title || `Chapter ${ch.number || 'Unknown'}`;
+          const chapterContent = ch.content || ch.text || '';
+          return `# ${chapterTitle}\n\n${chapterContent}`;
+        })
+        .join('\n\n---\n\n');
+      
+      const data = {
+        outline: outline,
+        chapters: chapters,
+        fullNovel: fullNovelText,
+        stats: {
+          totalWords: chapters.reduce((sum, ch) => sum + (ch.wordCount || 0), 0),
+          chapterCount: chapters.length,
+          successfulChapters: chapters.filter(ch => ch.content || ch.text).length
+        }
+      };
+      
+      // Handle the response from simple generation
+      if (data && data.outline && data.chapters) {
+        addLog(`✅ Novel generation completed! Generated ${data.chapters.length} chapters`, 'success');
+        setResult(data);
+        setProgress(100);
+        setIsGenerating(false);
+        onSuccess(data);
+      } else {
+        throw new Error('Invalid response from simple generation');
+      }
+      
+    } catch (error) {
+      throw error; // Re-throw to be handled by main function
     }
   };
+
   // Legacy batch generation (now calls recovery version)
   const startBatchGeneration = async (storyData) => {
     return startBatchGenerationWithRecovery(storyData, 0, []);
-  };
   };
 
   const createOutline = async () => {
