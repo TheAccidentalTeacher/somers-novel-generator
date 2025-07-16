@@ -1,6 +1,8 @@
 import React, { useState, useEffect, useRef } from 'react';
 import LoadingSpinner from './LoadingSpinner';
 import apiService from '../services/apiService.js';
+import { Document, Packer, Paragraph, TextRun, HeadingLevel, AlignmentType } from 'docx';
+import { saveAs } from 'file-saver';
 import './AutoGenerate.css';
 
 // Advanced Novel Generator v2.0 - Updated 2025-07-14
@@ -1334,44 +1336,190 @@ const AutoGenerate = ({ conflictData, apiConfig, onSuccess, onError, onNotificat
     URL.revokeObjectURL(url);
   };
 
-  const downloadFullNovel = () => {
+  const downloadFullNovel = async () => {
     if (!result) return;
 
-    // Handle both old and new result formats
-    const title = result.title || storySetup.title || 'Generated Novel';
-    const author = result.author || 'AI Generated';
-    
-    let content = `${title}\n`;
-    content += `by ${author}\n\n`;
-    
-    // Add stats
-    if (result.stats) {
-      content += `Total Words: ${result.stats.totalWords || 'Unknown'}\n`;
-      content += `Chapters: ${result.stats.chapterCount || 'Unknown'}\n\n`;
-    }
-    
-    content += '='.repeat(50) + '\n\n';
-
-    if (result.chapters && result.chapters.length > 0) {
-      // Sort chapters by number to ensure correct order
-      const sortedChapters = [...result.chapters].sort((a, b) => (a.number || 0) - (b.number || 0));
+    try {
+      // Handle both old and new result formats
+      const title = result.title || storySetup.title || 'Generated Novel';
+      const author = result.author || 'AI Generated';
       
-      sortedChapters.forEach((chapter) => {
-        const chapterNum = chapter.number || chapter.chapterIndex + 1 || 'Unknown';
-        const chapterTitle = chapter.title || `Chapter ${chapterNum}`;
-        const chapterContent = chapter.content || chapter.text || 'No content available';
-        
-        content += `CHAPTER ${chapterNum}: ${chapterTitle}\n\n`;
-        content += chapterContent + '\n\n';
-        content += '-'.repeat(30) + '\n\n';
-      });
-    } else if (result.fullNovel) {
-      // Fallback to full novel text if chapters aren't available
-      content += result.fullNovel;
-    }
+      // Create document sections
+      const children = [];
+      
+      // Title page
+      children.push(
+        new Paragraph({
+          children: [
+            new TextRun({
+              text: title,
+              bold: true,
+              size: 32,
+            }),
+          ],
+          heading: HeadingLevel.TITLE,
+          alignment: AlignmentType.CENTER,
+          spacing: { after: 400 },
+        }),
+        new Paragraph({
+          children: [
+            new TextRun({
+              text: `by ${author}`,
+              italics: true,
+              size: 24,
+            }),
+          ],
+          alignment: AlignmentType.CENTER,
+          spacing: { after: 800 },
+        })
+      );
+      
+      // Add stats if available
+      if (result.stats) {
+        children.push(
+          new Paragraph({
+            children: [
+              new TextRun({
+                text: `Total Words: ${result.stats.totalWords || 'Unknown'}`,
+                size: 20,
+              }),
+            ],
+            alignment: AlignmentType.CENTER,
+            spacing: { after: 200 },
+          }),
+          new Paragraph({
+            children: [
+              new TextRun({
+                text: `Chapters: ${result.stats.chapterCount || 'Unknown'}`,
+                size: 20,
+              }),
+            ],
+            alignment: AlignmentType.CENTER,
+            spacing: { after: 400 },
+          })
+        );
+      }
+      
+      // Page break before chapters
+      children.push(
+        new Paragraph({
+          children: [new TextRun({ text: "", break: 1 })],
+          pageBreakBefore: true,
+        })
+      );
 
-    const filename = `${title.replace(/[^a-z0-9]/gi, '_').toLowerCase()}_novel.txt`;
-    handleDownload(content, filename);
+      // Add chapters
+      if (result.chapters && result.chapters.length > 0) {
+        // Sort chapters by number to ensure correct order
+        const sortedChapters = [...result.chapters].sort((a, b) => (a.number || 0) - (b.number || 0));
+        
+        sortedChapters.forEach((chapter, index) => {
+          const chapterNum = chapter.number || chapter.chapterIndex + 1 || index + 1;
+          const chapterTitle = chapter.title || `Chapter ${chapterNum}`;
+          const chapterContent = chapter.content || chapter.text || 'No content available';
+          
+          // Chapter heading
+          children.push(
+            new Paragraph({
+              children: [
+                new TextRun({
+                  text: `Chapter ${chapterNum}`,
+                  bold: true,
+                  size: 28,
+                }),
+              ],
+              heading: HeadingLevel.HEADING_1,
+              spacing: { before: 400, after: 200 },
+            })
+          );
+          
+          // Chapter title (if different from "Chapter X")
+          if (chapterTitle !== `Chapter ${chapterNum}`) {
+            children.push(
+              new Paragraph({
+                children: [
+                  new TextRun({
+                    text: chapterTitle,
+                    bold: true,
+                    size: 24,
+                  }),
+                ],
+                heading: HeadingLevel.HEADING_2,
+                spacing: { after: 300 },
+              })
+            );
+          }
+          
+          // Chapter content - split into paragraphs
+          const paragraphs = chapterContent.split('\n\n').filter(p => p.trim().length > 0);
+          paragraphs.forEach(paragraphText => {
+            children.push(
+              new Paragraph({
+                children: [
+                  new TextRun({
+                    text: paragraphText.trim(),
+                    size: 24,
+                  }),
+                ],
+                spacing: { after: 200 },
+                indent: { firstLine: 720 }, // First line indent
+              })
+            );
+          });
+          
+          // Add space between chapters (except for the last one)
+          if (index < sortedChapters.length - 1) {
+            children.push(
+              new Paragraph({
+                children: [new TextRun({ text: "", break: 2 })],
+                spacing: { after: 400 },
+              })
+            );
+          }
+        });
+      } else if (result.fullNovel) {
+        // Fallback to full novel text if chapters aren't available
+        const paragraphs = result.fullNovel.split('\n\n').filter(p => p.trim().length > 0);
+        paragraphs.forEach(paragraphText => {
+          children.push(
+            new Paragraph({
+              children: [
+                new TextRun({
+                  text: paragraphText.trim(),
+                  size: 24,
+                }),
+              ],
+              spacing: { after: 200 },
+              indent: { firstLine: 720 },
+            })
+          );
+        });
+      }
+
+      // Create the document
+      const doc = new Document({
+        sections: [
+          {
+            properties: {},
+            children: children,
+          },
+        ],
+      });
+
+      // Generate and download the document
+      const buffer = await Packer.toBuffer(doc);
+      const filename = `${title.replace(/[^a-z0-9]/gi, '_').toLowerCase()}_novel.docx`;
+      
+      saveAs(new Blob([buffer]), filename);
+      
+      addLog(`✅ Novel downloaded as ${filename}`, 'success');
+      onNotification('Novel downloaded successfully!', 'success');
+      
+    } catch (error) {
+      console.error('Download error:', error);
+      addLog(`❌ Download failed: ${error.message}`, 'error');
+      onError(new Error(`Failed to download novel: ${error.message}`));
+    }
   };
 
   const reset = () => {
@@ -1545,7 +1693,7 @@ const AutoGenerate = ({ conflictData, apiConfig, onSuccess, onError, onNotificat
             className="btn btn-success btn-large"
             onClick={downloadFullNovel}
           >
-            📥 Download Complete Novel
+            📥 Download as Word Document (.docx)
           </button>
           
           <button 
