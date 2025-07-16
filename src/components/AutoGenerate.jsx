@@ -486,28 +486,18 @@ const AutoGenerate = ({ conflictData, apiConfig, onSuccess, onError, onNotificat
   // NEW: Streaming generation function
   const startStreamingGeneration = async (storyData) => {
     try {
-      // Step 1: Generate outline
-      addLog('📝 Step 1: Generating outline...', 'info');
-      setProgress(10);
-      
-      const outlineResponse = await apiService.generateSimpleOutlineNew(storyData.synopsis, {
-        genre: storyData.genre || 'fantasy',
-        wordCount: storyData.wordCount || 50000,
-        chapterCount: calculatedChapters
-      });
-      
-      if (!outlineResponse.success || !outlineResponse.outline) {
-        throw new Error('Failed to generate outline');
+      // Use existing outline that was already created
+      if (!outline || outline.length === 0) {
+        throw new Error('No outline available. Please create outline first.');
       }
       
-      addLog(`✅ Outline generated with ${outlineResponse.outline.length} chapters`, 'success');
-      setOutline(outlineResponse.outline);
+      addLog(`📝 Using existing outline with ${outline.length} chapters`, 'info');
       setProgress(20);
       
       // Step 2: Start streaming generation
       addLog('🎥 Step 2: Starting live chapter generation...', 'info');
       
-      const streamResponse = await apiService.startStreamingGeneration(outlineResponse.outline, {
+      const streamResponse = await apiService.startStreamingGeneration(outline, {
         genre: storyData.genre || 'fantasy',
         wordCount: storyData.wordCount || 50000,
         premise: storyData.synopsis
@@ -655,31 +645,21 @@ const AutoGenerate = ({ conflictData, apiConfig, onSuccess, onError, onNotificat
   // Existing batch generation (renamed)
   const startBatchGeneration = async (storyData) => {
     try {
-      // Use incremental generation approach to avoid timeouts
-      addLog('📝 Step 1: Generating outline...', 'info');
-      setProgress(10);
-      
-      // First, generate the outline (this works and is fast)
-      const outlineResponse = await apiService.generateSimpleOutlineNew(storyData.synopsis, {
-        genre: storyData.genre || 'fantasy',
-        wordCount: storyData.wordCount || 50000,
-        chapterCount: calculatedChapters
-      });
-      
-      if (!outlineResponse.success || !outlineResponse.outline) {
-        throw new Error('Failed to generate outline');
+      // Use existing outline that was already created
+      if (!outline || outline.length === 0) {
+        throw new Error('No outline available. Please create outline first.');
       }
       
-      addLog(`✅ Outline generated with ${outlineResponse.outline.length} chapters`, 'success');
+      addLog(`📝 Using existing outline with ${outline.length} chapters`, 'info');
       setProgress(20);
       
       // Now generate chapters individually to avoid timeouts
       addLog('📚 Step 2: Generating chapters...', 'info');
       const chapters = [];
-      const totalChapters = outlineResponse.outline.length;
+      const totalChapters = outline.length;
       
       for (let i = 0; i < totalChapters; i++) {
-        const chapterOutline = outlineResponse.outline[i];
+        const chapterOutline = outline[i];
         addLog(`Writing Chapter ${i + 1}: ${chapterOutline.title}...`, 'info');
         
         try {
@@ -736,7 +716,7 @@ const AutoGenerate = ({ conflictData, apiConfig, onSuccess, onError, onNotificat
         .join('\n\n---\n\n');
       
       const data = {
-        outline: outlineResponse.outline,
+        outline: outline,
         chapters: chapters,
         fullNovel: fullNovelText,
         stats: {
