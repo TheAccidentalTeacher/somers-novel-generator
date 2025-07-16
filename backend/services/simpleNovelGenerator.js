@@ -64,8 +64,8 @@ class SimpleNovelGenerator {
       qualitySettings = {}
     } = settings;
 
-    // Generate quality instructions based on settings - TEMPORARILY DISABLED FOR DEBUG
-    const qualityInstructions = ''; // this.generateQualityInstructions(qualitySettings);
+    // Generate quality instructions based on settings
+    const qualityInstructions = this.generateQualityInstructions(qualitySettings);
 
     // IMPROVED PROMPT - More explicit JSON formatting instructions + quality enhancements
     const prompt = `You are a professional novel outline generator. Create a detailed ${chapterCount} chapter outline for a ${genre} novel.
@@ -486,7 +486,7 @@ Write about ${chapterOutline.wordTarget} words. Focus on creating engaging, natu
       instructions.push("DRAMATIC PACING: Use sentence fragments for emphasis. Employ run-on sentences for building tension or excitement. Vary paragraph length to control pacing - short paragraphs for quick action, longer ones for reflection.");
     }
     
-    if (qualitySettings.includeSuprises) {
+    if (qualitySettings.includeSurprises) {
       instructions.push("GENUINE SURPRISES: Include plot developments that readers cannot easily predict. Introduce unexpected character reactions, surprising solutions to problems, or events that don't follow the obvious allegorical pattern.");
     }
     
