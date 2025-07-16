@@ -763,7 +763,7 @@ const AutoGenerate = ({ conflictData, apiConfig, onSuccess, onError, onNotificat
         
         try {
           // Generate individual chapter with shorter timeout
-          const chapterResponse = await apiService.makeRequest('/api/simple-generate-new/chapter', {
+          const chapterResponse = await apiService.makeRequest('/simple-generate-new/chapter', {
             method: 'POST',
             body: JSON.stringify({
               chapterOutline,

@@ -223,7 +223,7 @@ class APIService {
       chapterCount
     };
     
-    const response = await this.makeRequest('/api/simple-generate-new/outline', {
+    const response = await this.makeRequest('/simple-generate-new/outline', {
       method: 'POST',
       body: JSON.stringify({ 
         premise: synopsis,
@@ -307,7 +307,7 @@ class APIService {
 
   // NEW: Simple generation endpoints
   async generateSimpleOutlineNew(premise, settings = {}) {
-    return this.makeRequest('/api/simple-generate-new/outline', {
+    return this.makeRequest('/simple-generate-new/outline', {
       method: 'POST',
       body: JSON.stringify({ premise, settings }),
       timeout: 180000 // 3 minutes for outline generation
@@ -317,7 +317,7 @@ class APIService {
   async generateSimpleNovel(premise, settings = {}, signal = null) {
     console.log(`🚀 Starting full novel generation (${premise.length} characters)...`);
     
-    return this.makeRequest('/api/simple-generate-new/full-novel', {
+    return this.makeRequest('/simple-generate-new/full-novel', {
       method: 'POST',
       body: JSON.stringify({ premise, settings }),
       timeout: 600000, // 10 minutes timeout for full novel generation
@@ -329,7 +329,7 @@ class APIService {
   async startStreamingGeneration(outline, settings = {}) {
     console.log(`🎥 Starting streaming generation for ${outline.length} chapters...`);
     
-    const response = await this.makeRequest('/api/simple-generate-new/stream-start', {
+    const response = await this.makeRequest('/simple-generate-new/stream-start', {
       method: 'POST',
       body: JSON.stringify({ 
         outline, 
@@ -344,7 +344,7 @@ class APIService {
 
   // Create streaming connection for chapter generation
   createChapterStream(streamId) {
-    const url = `${this.config.baseUrl}/api/simple-generate-new/stream/${streamId}`;
+    const url = `${this.config.baseUrl}/simple-generate-new/stream/${streamId}`;
     console.log(`🎥 Creating chapter stream: ${url}`);
     
     // Don't use credentials for EventSource to avoid CORS issues
