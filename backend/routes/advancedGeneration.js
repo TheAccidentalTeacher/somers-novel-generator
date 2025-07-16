@@ -345,4 +345,85 @@ async function processAdvancedStream(streamId) {
   }
 }
 
+// Legacy endpoints for compatibility with frontend apiService
+router.post('/generateNovel', async (req, res) => {
+  try {
+    console.log('📚 Generating novel (legacy endpoint)...');
+    const { storyData } = req.body;
+
+    if (!storyData) {
+      return res.status(400).json({
+        success: false,
+        error: 'Missing storyData'
+      });
+    }
+
+    if (!advancedAI.isConfigured()) {
+      return res.status(503).json({
+        success: false,
+        error: 'AI service not configured. Please check OpenAI API key.'
+      });
+    }
+
+    // Use advanced generation for better results
+    const jobId = advancedAI.createJob(storyData, {});
+    advancedAI.processAdvancedGeneration(jobId).catch(error => {
+      console.error(`Legacy job ${jobId} processing error:`, error);
+    });
+
+    res.json({
+      success: true,
+      jobId: jobId,
+      message: 'Novel generation started (using advanced system)'
+    });
+
+  } catch (error) {
+    console.error('❌ Legacy generateNovel error:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message
+    });
+  }
+});
+
+router.post('/autoGenerateNovel', async (req, res) => {
+  try {
+    console.log('🤖 Auto-generating novel (legacy endpoint)...');
+    const { conflictData } = req.body;
+
+    if (!conflictData) {
+      return res.status(400).json({
+        success: false,
+        error: 'Missing conflictData'
+      });
+    }
+
+    if (!advancedAI.isConfigured()) {
+      return res.status(503).json({
+        success: false,
+        error: 'AI service not configured. Please check OpenAI API key.'
+      });
+    }
+
+    // Use advanced generation for better results
+    const jobId = advancedAI.createJob(conflictData, {});
+    advancedAI.processAdvancedGeneration(jobId).catch(error => {
+      console.error(`Legacy auto-generation job ${jobId} processing error:`, error);
+    });
+
+    res.json({
+      success: true,
+      jobId: jobId,
+      message: 'Auto-generation started (using advanced system)'
+    });
+
+  } catch (error) {
+    console.error('❌ Legacy autoGenerateNovel error:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message
+    });
+  }
+});
+
 export default router;
