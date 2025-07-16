@@ -5,17 +5,16 @@ import rateLimit from 'express-rate-limit';
 import dotenv from 'dotenv';
 
 // Import routes
-// NEW: Simple, clean novel generator (ONLY working system)
-import simpleGenerateNewRouter from './routes/simpleGenerateNew.js';
+import autoGenerateRouter from './routes/autoGenerate.js';
+import generateNovelRouter from './routes/generateNovel.js';
+import streamGenerationRouter from './routes/streamGeneration.js';
+import advancedGenerationRouter from './routes/advancedGeneration.js';
 
 // Load environment variables
 dotenv.config();
 
 const app = express();
 const PORT = process.env.PORT || 3000;
-
-// Trust proxy for Railway deployment
-app.set('trust proxy', true);
 
 // Security middleware
 app.use(helmet({
@@ -200,8 +199,11 @@ app.use('/api/', limiter);
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
-// API routes - ONLY our working simple system
-app.use('/api/simple-generate-new', simpleGenerateNewRouter);
+// API routes
+app.use('/api', autoGenerateRouter);
+app.use('/api', generateNovelRouter);
+app.use('/api', streamGenerationRouter);
+app.use('/api', advancedGenerationRouter);
 
 // Health check endpoint for connection testing
 app.get('/api/health', (req, res) => {
@@ -219,10 +221,13 @@ app.get('/', (req, res) => {
     message: 'Somers Novel Generator API',
     version: '2.0.0',
     endpoints: {
-      health: 'GET /api/health',
-      simpleOutline: 'POST /api/simple-generate-new/outline',
-      simpleChapter: 'POST /api/simple-generate-new/chapter',
-      simpleFullNovel: 'POST /api/simple-generate-new/full-novel'
+      quickGenerate: 'POST /api/generateNovel',
+      autoGenerate: 'POST /api/autoGenerateNovel',
+      streamGeneration: 'POST /api/streamGeneration',
+      // Advanced endpoints
+      createOutline: 'POST /api/createOutline',
+      advancedGeneration: 'POST /api/advancedGeneration',
+      advancedStreaming: 'POST /api/advancedStreamGeneration'
     }
   });
 });

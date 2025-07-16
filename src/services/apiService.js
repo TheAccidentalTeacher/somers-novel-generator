@@ -7,7 +7,7 @@ class APIService {
   constructor() {
     this.defaultConfig = {
       baseUrl: this.getDefaultBaseUrl(),
-      timeout: 120000, // 2 minutes default timeout for AI generation
+      timeout: 30000,
       retryAttempts: 3,
       retryDelay: 1000
     };
@@ -77,7 +77,7 @@ class APIService {
     for (let attempt = 0; attempt <= retryAttempts; attempt++) {
       let timeoutId;
       try {
-        console.log(`🚀 API Request [Attempt ${attempt + 1}]: ${method} ${url} (timeout: ${timeout}ms)`);
+        console.log(`🚀 API Request [Attempt ${attempt + 1}]: ${method} ${url}`);
         
         // Create abort controller for timeout, but respect external signal
         if (signal) {
@@ -88,10 +88,7 @@ class APIService {
           requestConfig.signal = signal;
         } else {
           const controller = new AbortController();
-          timeoutId = setTimeout(() => {
-            console.log(`⏰ Request timeout triggered after ${timeout}ms for ${method} ${endpoint}`);
-            controller.abort();
-          }, timeout);
+          timeoutId = setTimeout(() => controller.abort(), timeout);
           requestConfig.signal = controller.signal;
         }
 
@@ -103,37 +100,11 @@ class APIService {
 
         // Handle response
         if (!response.ok) {
-          // Get response body for better error details
-          let errorDetails = await this.safeResponseText(response);
-          let parsedError = null;
-          
-          try {
-            parsedError = JSON.parse(errorDetails);
-          } catch {
-            // Not JSON, use as is
-          }
-          
-          const apiError = new APIError(
+          throw new APIError(
             `HTTP ${response.status}: ${response.statusText}`,
             response.status,
-            parsedError || errorDetails
+            await this.safeResponseText(response)
           );
-          
-          // Add specific error context
-          apiError.url = url;
-          apiError.method = method;
-          apiError.timestamp = new Date().toISOString();
-          
-          console.error('❌ API Error Details:', {
-            status: response.status,
-            statusText: response.statusText,
-            url: url,
-            method: method,
-            errorDetails: parsedError || errorDetails,
-            headers: Object.fromEntries(response.headers.entries())
-          });
-          
-          throw apiError;
         }
 
         // Parse response
@@ -182,9 +153,18 @@ class APIService {
 
   async testConnection() {
     try {
-      // Test connection using the health endpoint
-      const response = await this.makeRequest('/health', {
-        method: 'GET'
+      // Test connection using a lightweight API endpoint
+      // This is better than a separate health endpoint
+      const response = await this.makeRequest('/createOutline', {
+        method: 'POST',
+        body: {
+          // Minimal test data to verify backend connectivity
+          title: 'Connection Test',
+          genre: 'Test',
+          synopsis: 'This is a connection test synopsis.',
+          wordCount: 1000,
+          chapters: 1
+        }
       });
 
       return {
@@ -211,34 +191,48 @@ class APIService {
   // =====================================================================
 
   async createOutline(storyData, signal = null) {
-    // SIMPLE FIX: Route old outline calls to new simple system
-    const { synopsis, genre = 'fantasy', wordCount = 50000, chapters } = storyData;
-    
-    // Use provided chapter count if available, otherwise calculate
-    const chapterCount = chapters || Math.max(5, Math.min(25, Math.round(wordCount / 2000)));
-    
-    const settings = {
-      genre,
-      wordCount,
-      chapterCount
-    };
-    
-    const response = await this.makeRequest('/simple-generate-new/outline', {
+    return this.makeRequest('/createOutline', {
       method: 'POST',
-      body: JSON.stringify({ 
-        premise: synopsis,
-        settings 
-      }),
-      timeout: 180000, // 3 minutes for outline generation
-      signal
+      body: storyData,
+      signal: signal
     });
-    
-    return response;
   }
 
-  // =====================================================================
-  // SIMPLE GENERATION METHODS (ONLY WORKING SYSTEM)
-  // =====================================================================
+  async generateNovel(storyData) {
+    return this.makeRequest('/generateNovel', {
+      method: 'POST',
+      body: storyData,
+      timeout: 300000 // 5 minutes for generation
+    });
+  }
+
+  async autoGenerateNovel(conflictData) {
+    return this.makeRequest('/autoGenerateNovel', {
+      method: 'POST',
+      body: conflictData,
+      timeout: 300000 // 5 minutes for generation
+    });
+  }
+
+  async advancedGeneration(storyData) {
+    return this.makeRequest('/advancedGeneration', {
+      method: 'POST',
+      body: storyData,
+      timeout: 600000 // 10 minutes for advanced generation
+    });
+  }
+
+  async getGenerationStatus(jobId) {
+    return this.makeRequest(`/advancedGeneration/${jobId}`, {
+      method: 'GET'
+    });
+  }
+
+  async cancelGeneration(jobId) {
+    return this.makeRequest(`/advancedGeneration/${jobId}`, {
+      method: 'DELETE'
+    });
+  }
 
   // =====================================================================
   // STREAMING METHODS
@@ -278,153 +272,6 @@ class APIService {
   reset() {
     this.config = { ...this.defaultConfig };
   }
-
-  // NEW: Simple outline generation (streamlined approach)
-  async generateSimpleOutline(premise, storyType = 'fantasy') {
-    console.log(`🚀 Starting simple outline generation (${premise.length} characters)...`);
-    
-    try {
-      const response = await this.makeRequest('/simple-generate', {
-        method: 'POST',
-        body: JSON.stringify({
-          premise: premise.trim(),
-          storyType
-        }),
-        timeout: 60000 // 1 minute timeout for outline generation
-      });
-
-      if (response.success) {
-        console.log(`✅ Simple outline generated: ${response.outline.length} chapters`);
-        return response;
-      } else {
-        throw new Error(response.error || 'Failed to generate outline');
-      }
-    } catch (error) {
-      console.error('❌ Simple outline generation failed:', error);
-      throw error;
-    }
-  }
-
-  // NEW: Simple generation endpoints
-  async generateSimpleOutlineNew(premise, settings = {}) {
-    return this.makeRequest('/simple-generate-new/outline', {
-      method: 'POST',
-      body: JSON.stringify({ premise, settings }),
-      timeout: 180000 // 3 minutes for outline generation
-    });
-  }
-
-  async generateSimpleNovel(premise, settings = {}, signal = null) {
-    console.log(`🚀 Starting full novel generation (${premise.length} characters)...`);
-    
-    return this.makeRequest('/simple-generate-new/full-novel', {
-      method: 'POST',
-      body: JSON.stringify({ premise, settings }),
-      timeout: 600000, // 10 minutes timeout for full novel generation
-      signal
-    });
-  }
-
-  // NEW: Live streaming chapter generation
-  async startStreamingGeneration(outline, settings = {}) {
-    console.log(`🎥 Starting streaming generation for ${outline.length} chapters...`);
-    
-    const response = await this.makeRequest('/simple-generate-new/stream-start', {
-      method: 'POST',
-      body: JSON.stringify({ 
-        outline, 
-        settings,
-        timestamp: new Date().toISOString()
-      }),
-      timeout: 10000 // 10 seconds to start the stream
-    });
-    
-    return response;
-  }
-
-  // Create streaming connection for chapter generation
-  createChapterStream(streamId) {
-    const url = `${this.config.baseUrl}/simple-generate-new/stream/${streamId}`;
-    console.log(`🎥 Creating chapter stream: ${url}`);
-    
-    // Don't use credentials for EventSource to avoid CORS issues
-    const eventSource = new EventSource(url);
-    
-    // Add debugging
-    eventSource.addEventListener('open', () => {
-      console.log('🔗 EventSource opened successfully');
-    });
-    
-    eventSource.addEventListener('error', (error) => {
-      console.error('❌ EventSource error:', error);
-      console.log('❌ EventSource readyState:', eventSource.readyState);
-    });
-    
-    return eventSource;
-  }
-
-  // NEW: Batch generation with progress polling (much more reliable)
-  async generateNovelWithProgress(novelData, onProgress = null) {
-    console.log(`🚀 Starting batch novel generation with progress updates...`);
-    
-    // Start the batch job
-    const response = await this.makeRequest('/simple-generate-new/batch-with-progress', {
-      method: 'POST',
-      body: JSON.stringify(novelData),
-      timeout: 30000 // 30 seconds to start the job
-    });
-    
-    if (!response.success || !response.jobId) {
-      throw new Error(response.error || 'Failed to start batch generation');
-    }
-    
-    const jobId = response.jobId;
-    console.log(`📋 Job started: ${jobId}`);
-    
-    // Poll for progress every 10 seconds
-    return new Promise((resolve, reject) => {
-      const pollInterval = setInterval(async () => {
-        try {
-          const statusResponse = await this.makeRequest(`/simple-generate-new/job-status/${jobId}`, {
-            method: 'GET',
-            timeout: 15000
-          });
-          
-          if (statusResponse.status === 'completed') {
-            clearInterval(pollInterval);
-            console.log(`✅ Batch generation completed`);
-            resolve(statusResponse.result);
-          } else if (statusResponse.status === 'error') {
-            clearInterval(pollInterval);
-            const error = new Error(statusResponse.error || 'Generation failed');
-            if (statusResponse.chapters && statusResponse.chapters.length > 0) {
-              error.novel = { chapters: statusResponse.chapters };
-            }
-            reject(error);
-          } else {
-            // Call progress callback if provided
-            if (onProgress) {
-              onProgress({
-                currentChapter: statusResponse.currentChapter,
-                totalChapters: statusResponse.totalChapters,
-                status: statusResponse.status
-              });
-            }
-            console.log(`📊 ${statusResponse.status} (${statusResponse.currentChapter}/${statusResponse.totalChapters})`);
-          }
-        } catch (error) {
-          console.error('❌ Polling error:', error);
-          // Don't fail on single polling errors, just continue
-        }
-      }, 10000); // Poll every 10 seconds
-      
-      // Timeout after 30 minutes
-      setTimeout(() => {
-        clearInterval(pollInterval);
-        reject(new Error('Generation timed out after 30 minutes'));
-      }, 30 * 60 * 1000);
-    });
-  }
 }
 
 // =====================================================================
@@ -437,64 +284,10 @@ class APIError extends Error {
     this.name = 'APIError';
     this.status = status;
     this.details = details;
-    this.timestamp = new Date().toISOString();
   }
 
   toString() {
     return `${this.name}: ${this.message} (Status: ${this.status})`;
-  }
-
-  getDetailedInfo() {
-    return {
-      error: this.message,
-      status: this.status,
-      timestamp: this.timestamp,
-      details: this.details,
-      url: this.url,
-      method: this.method,
-      suggestions: this.getSuggestions()
-    };
-  }
-
-  getSuggestions() {
-    const suggestions = [];
-    
-    if (this.status === 0) {
-      suggestions.push('Check your internet connection');
-      suggestions.push('Verify the backend server is running');
-    } else if (this.status === 400) {
-      suggestions.push('Check the request data format');
-      suggestions.push('Ensure all required fields are provided');
-    } else if (this.status === 401) {
-      suggestions.push('Check API authentication');
-      suggestions.push('Verify API keys are correctly set');
-    } else if (this.status === 403) {
-      suggestions.push('Check API permissions');
-      suggestions.push('Verify you have access to this resource');
-    } else if (this.status === 404) {
-      suggestions.push('Check the API endpoint URL');
-      suggestions.push('Verify the backend is deployed correctly');
-    } else if (this.status === 429) {
-      suggestions.push('You are being rate limited');
-      suggestions.push('Wait a moment and try again');
-    } else if (this.status >= 500) {
-      suggestions.push('Server error - try again in a moment');
-      suggestions.push('Check backend logs for more details');
-    }
-    
-    // Add specific suggestions based on error details
-    if (this.details && typeof this.details === 'object') {
-      if (this.details.errorCode === 'MISSING_API_KEY') {
-        suggestions.push('Set OPENAI_API_KEY environment variable');
-      } else if (this.details.errorCode === 'JSON_PARSE_ERROR') {
-        suggestions.push('AI response was malformed - try again');
-      } else if (this.details.errorCode === 'TIMEOUT_ERROR') {
-        suggestions.push('Try with a shorter premise');
-        suggestions.push('Use batch mode instead of streaming');
-      }
-    }
-    
-    return suggestions;
   }
 }
 
@@ -506,4 +299,3 @@ const apiService = new APIService();
 
 export default apiService;
 export { APIError };
-export const generateNovelWithProgress = apiService.generateNovelWithProgress.bind(apiService);

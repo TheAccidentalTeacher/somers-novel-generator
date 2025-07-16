@@ -37,9 +37,6 @@ const AutoGenerate = ({ conflictData, apiConfig, onSuccess, onError, onNotificat
   
   const [generationMode, setGenerationMode] = useState('batch'); // 'batch' or 'stream'
   
-  // Add state for tracking completed chapters for recovery
-  const [completedChapters, setCompletedChapters] = useState([]);
-  
   const intervalRef = useRef(null);
   const abortControllerRef = useRef(null);
 
@@ -173,6 +170,15 @@ const AutoGenerate = ({ conflictData, apiConfig, onSuccess, onError, onNotificat
     characterSpecificVocabulary: true, // Each character has unique word choices based on background/education
     conversationalMomentum: true, // Dialogue flows with natural rhythm, not perfect turn-taking
     unequivalentResponses: true, // Characters don't always directly answer questions or address points made
+    
+    // CONFLICT STRUCTURE ENHANCEMENT - Smart Genre-Based Conflict Management
+    
+    // Conflict Intensity Controls (High-level user controls)
+    conflictIntensity: 'moderate', // 'low', 'moderate', 'high' - overall story tension level
+    paceVariation: true, // Allow natural pacing variations with quiet and intense moments
+    allowQuietMoments: true, // Include lower-conflict scenes for character development and pacing
+    conflictLayering: true, // Use multiple conflict types simultaneously but balanced
+    naturalConflictFlow: true, // Conflicts arise organically from character goals rather than forced drama
   });
 
   // Comprehensive genre mapping system for LLM instructions
@@ -181,6 +187,12 @@ const AutoGenerate = ({ conflictData, apiConfig, onSuccess, onError, onNotificat
       name: 'Mystery',
       icon: '🔍',
       description: 'Suspenseful stories focused on solving crimes or puzzles',
+      // Conflict emphasis for smart defaults
+      conflictEmphasis: {
+        primary: 'person_vs_unknown', // 60% - The central mystery/puzzle
+        secondary: 'person_vs_person', // 30% - Antagonist/suspect conflicts
+        tertiary: 'person_vs_self' // 10% - Detective's internal struggles
+      },
       subgenres: {
         cozy: {
           name: 'Cozy Mystery',
@@ -220,6 +232,12 @@ const AutoGenerate = ({ conflictData, apiConfig, onSuccess, onError, onNotificat
       name: 'Christian Fiction',
       icon: '✝️',
       description: 'Faith-based stories with Christian themes and values',
+      // Conflict emphasis for smart defaults
+      conflictEmphasis: {
+        primary: 'person_vs_self', // 50% - Internal spiritual struggles and growth
+        secondary: 'person_vs_supernatural', // 30% - Spiritual warfare, divine calling
+        tertiary: 'person_vs_society' // 20% - Faith vs. secular world conflicts
+      },
       subgenres: {
         contemporary: {
           name: 'Contemporary Christian',
@@ -235,7 +253,7 @@ const AutoGenerate = ({ conflictData, apiConfig, onSuccess, onError, onNotificat
         },
         fantasy: {
           name: 'Christian Fantasy',
-          instructions: 'Create a theologically rich fantasy world that glorifies the Triune God (Father, Son, Holy Spirit) through allegorical storytelling. Weave Reformed theology naturally into the narrative structure, using fantasy elements to illuminate biblical truths about God\'s sovereignty, Christ\'s redemptive work, and the Spirit\'s guidance. Include: detailed world-building that reflects divine order and biblical principles; characters who grow in understanding of God\'s nature through their journey; magical/fantastical systems that symbolize spiritual truths; clear good vs. evil conflict rooted in biblical worldview; redemption arcs that mirror gospel themes; sacrificial love reflecting Christ\'s sacrifice; proper biblical anthropology showing human dignity and depravity; covenant relationships and community themes; wisdom literature and scripture woven into dialogue and plot; humor that springs from joy in God\'s creation; detailed descriptions of how fantasy elements serve theological symbolism; characters who learn to depend on divine grace rather than self-reliance; resolution that points to God\'s ultimate victory and restoration. Balance profound reverence with engaging storytelling, ensuring every fantastical element serves to illuminate the character and glory of God.'
+          instructions: 'Create fantasy world with clear Christian allegory, good vs evil themes, redemption arcs, sacrificial love, and biblical parallels in fantastical setting.'
         },
         suspense: {
           name: 'Christian Suspense',
@@ -259,6 +277,12 @@ const AutoGenerate = ({ conflictData, apiConfig, onSuccess, onError, onNotificat
       name: 'Romance',
       icon: '💕',
       description: 'Love stories with romantic relationships as central plot',
+      // Conflict emphasis for smart defaults
+      conflictEmphasis: {
+        primary: 'person_vs_person', // 50% - Relationship obstacles between partners
+        secondary: 'person_vs_self', // 40% - Internal barriers to love and commitment
+        tertiary: 'person_vs_society' // 10% - External forces opposing the relationship
+      },
       subgenres: {
         contemporary: {
           name: 'Contemporary Romance',
@@ -298,6 +322,12 @@ const AutoGenerate = ({ conflictData, apiConfig, onSuccess, onError, onNotificat
       name: 'Fantasy',
       icon: '🐉',
       description: 'Stories with magical or supernatural elements',
+      // Conflict emphasis for smart defaults
+      conflictEmphasis: {
+        primary: 'person_vs_supernatural', // 60% - Magical forces, creatures, dark powers
+        secondary: 'person_vs_person', // 30% - Villain/antagonist conflicts
+        tertiary: 'person_vs_self' // 10% - Character growth and identity
+      },
       subgenres: {
         epic: {
           name: 'Epic Fantasy',
@@ -337,6 +367,12 @@ const AutoGenerate = ({ conflictData, apiConfig, onSuccess, onError, onNotificat
       name: 'Science Fiction',
       icon: '🚀',
       description: 'Stories based on scientific concepts and future technology',
+      // Conflict emphasis for smart defaults
+      conflictEmphasis: {
+        primary: 'person_vs_technology', // 50% - Technology vs. humanity themes
+        secondary: 'person_vs_society', // 30% - Dystopian systems, corporate control
+        tertiary: 'person_vs_self' // 20% - Identity and humanity questions
+      },
       subgenres: {
         space_opera: {
           name: 'Space Opera',
@@ -376,6 +412,12 @@ const AutoGenerate = ({ conflictData, apiConfig, onSuccess, onError, onNotificat
       name: 'Thriller',
       icon: '⚡',
       description: 'Fast-paced stories designed to create suspense and excitement',
+      // Conflict emphasis for smart defaults
+      conflictEmphasis: {
+        primary: 'person_vs_person', // 60% - Protagonist vs. antagonist conflicts
+        secondary: 'person_vs_time', // 25% - Deadline pressure and urgency
+        tertiary: 'person_vs_society' // 15% - Conspiracies and corrupt systems
+      },
       subgenres: {
         action: {
           name: 'Action Thriller',
@@ -423,7 +465,7 @@ const AutoGenerate = ({ conflictData, apiConfig, onSuccess, onError, onNotificat
       minWords: 1000,
       maxWords: 2000,
       suggestedChapterLength: 500,
-      chapters: 4 // Fixed: was 2-4
+      chapters: 2-4
     },
     short: {
       name: 'Short Story',
@@ -433,7 +475,7 @@ const AutoGenerate = ({ conflictData, apiConfig, onSuccess, onError, onNotificat
       minWords: 2000,
       maxWords: 7000,
       suggestedChapterLength: 1000,
-      chapters: 7 // Fixed: was 2-7
+      chapters: 2-7
     },
     novelette: {
       name: 'Novelette',
@@ -443,7 +485,7 @@ const AutoGenerate = ({ conflictData, apiConfig, onSuccess, onError, onNotificat
       minWords: 7001,
       maxWords: 17500,
       suggestedChapterLength: 1500,
-      chapters: 12 // Fixed: was 5-12
+      chapters: 5-12
     },
     novella: {
       name: 'Novella',
@@ -453,7 +495,7 @@ const AutoGenerate = ({ conflictData, apiConfig, onSuccess, onError, onNotificat
       minWords: 17501,
       maxWords: 50000,
       suggestedChapterLength: 2000,
-      chapters: 25 // Fixed: was 9-25
+      chapters: 9-25
     },
     novel: {
       name: 'Novel',
@@ -463,7 +505,7 @@ const AutoGenerate = ({ conflictData, apiConfig, onSuccess, onError, onNotificat
       minWords: 50001,
       maxWords: 110000,
       suggestedChapterLength: 2500,
-      chapters: 44 // Fixed: was 20-44
+      chapters: 20-44
     },
     epic: {
       name: 'Epic Novel',
@@ -473,7 +515,7 @@ const AutoGenerate = ({ conflictData, apiConfig, onSuccess, onError, onNotificat
       minWords: 110001,
       maxWords: 200000,
       suggestedChapterLength: 3000,
-      chapters: 67 // Fixed: was 37-67
+      chapters: 37-67
     }
   };
 
@@ -482,7 +524,7 @@ const AutoGenerate = ({ conflictData, apiConfig, onSuccess, onError, onNotificat
     if (apiConfig) {
       apiService.updateConfig({
         baseUrl: apiConfig.baseUrl,
-        timeout: apiConfig.timeout || 120000 // 2 minutes default
+        timeout: apiConfig.timeout || 30000
       });
     }
   }, [apiConfig]);
@@ -501,13 +543,22 @@ const AutoGenerate = ({ conflictData, apiConfig, onSuccess, onError, onNotificat
 
   // Calculate chapters when word count or target length changes
   useEffect(() => {
-    if (storySetup.wordCount && storySetup.targetChapterLength && storySetup.wordCount > 0 && storySetup.targetChapterLength > 0) {
+    if (storySetup.wordCount && storySetup.targetChapterLength) {
       const calculated = Math.round(storySetup.wordCount / storySetup.targetChapterLength);
       setCalculatedChapters(calculated);
-    } else {
-      setCalculatedChapters(0);
     }
   }, [storySetup.wordCount, storySetup.targetChapterLength]);
+
+  // Generate automatic title based on timestamp and genre
+  const generateAutoTitle = (genre, subgenre) => {
+    const timestamp = new Date();
+    const dateStr = timestamp.toISOString().split('T')[0]; // YYYY-MM-DD
+    const timeStr = timestamp.toTimeString().split(' ')[0].replace(/:/g, ''); // HHMMSS
+    const genreName = genreCategories[genre]?.name || 'Novel';
+    const subgenreName = genreCategories[genre]?.subgenres[subgenre]?.name || '';
+    
+    return `${genreName}_${subgenreName ? subgenreName + '_' : ''}${dateStr}_${timeStr}`.replace(/\s+/g, '_');
+  };
 
   const addLog = (message, type = 'info') => {
     const timestamp = new Date().toLocaleTimeString();
@@ -545,10 +596,14 @@ const AutoGenerate = ({ conflictData, apiConfig, onSuccess, onError, onNotificat
     }
 
     // Use either conflictData or storySetup
+    const selectedGenre = genreCategories[storySetup.genre];
+    const selectedSubgenre = selectedGenre?.subgenres[storySetup.subgenre];
+    const conflictEmphasis = selectedGenre?.conflictEmphasis || {};
+    
     const storyData = conflictData || {
       title: storySetup.title,
       genre: `${storySetup.genre}_${storySetup.subgenre}`,
-      genreInstructions: genreCategories[storySetup.genre]?.subgenres[storySetup.subgenre]?.instructions || '',
+      genreInstructions: selectedSubgenre?.instructions || '',
       fictionLength: storySetup.fictionLength,
       chapters: calculatedChapters,
       wordCount: storySetup.wordCount,
@@ -556,6 +611,26 @@ const AutoGenerate = ({ conflictData, apiConfig, onSuccess, onError, onNotificat
       chapterVariance: storySetup.chapterVariance,
       synopsis: storySetup.synopsis,
       outline: outline,
+      
+      // CONFLICT STRUCTURE INTEGRATION - Smart Genre-Based Defaults
+      conflictStructure: {
+        primaryConflicts: Object.entries(conflictEmphasis)
+          .filter(([type, weight]) => weight >= 50)
+          .map(([type, weight]) => ({ type, weight, prominence: 'primary' })),
+        secondaryConflicts: Object.entries(conflictEmphasis)
+          .filter(([type, weight]) => weight >= 25 && weight < 50)
+          .map(([type, weight]) => ({ type, weight, prominence: 'secondary' })),
+        tertiaryConflicts: Object.entries(conflictEmphasis)
+          .filter(([type, weight]) => weight > 0 && weight < 25)
+          .map(([type, weight]) => ({ type, weight, prominence: 'tertiary' })),
+        
+        // Quality settings for conflict management
+        conflictIntensity: qualitySettings.conflictIntensity,
+        allowQuietMoments: qualitySettings.allowQuietMoments,
+        naturalConflictFlow: qualitySettings.naturalConflictFlow,
+        conflictLayering: qualitySettings.conflictLayering
+      },
+      
       // Add minimal structure for API compatibility
       themes: { primary: 'Character growth and compelling narrative' },
       characters: {
@@ -585,17 +660,50 @@ const AutoGenerate = ({ conflictData, apiConfig, onSuccess, onError, onNotificat
       const requestData = {
         storyData: storyData,
         preferences,
+        qualitySettings, // Include all the enhanced writing quality settings
         generationMode, // 'batch' or 'stream'
         useAdvancedIteration: true, // Enable the sophisticated AI process
         timestamp: new Date().toISOString()
       };
 
-      // Check generation mode and use appropriate approach
+      // Choose endpoint and make request based on generation mode
+      let data;
       if (generationMode === 'stream') {
-        addLog('🎥 Starting live streaming generation...', 'info');
-        await startStreamingGeneration(storyData);
+        // For streaming, we'll still need to handle this differently
+        const response = await fetch(`${apiConfig.baseUrl}/advancedStreamGeneration`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify(requestData),
+          signal: abortControllerRef.current.signal
+        });
+
+        if (!response.ok) {
+          const errorData = await response.json().catch(() => ({}));
+          throw new Error(errorData.error || `HTTP ${response.status}: ${response.statusText}`);
+        }
+
+        data = await response.json();
       } else {
-        await startBatchGeneration(storyData);
+        // Use the API service for non-streaming requests
+        data = await apiService.advancedGeneration(requestData);
+      }
+      
+      if (!data.success) {
+        throw new Error(data.error || 'Failed to start generation');
+      }
+
+      if (generationMode === 'stream') {
+        // Handle streaming mode
+        setJobId(data.streamId);
+        addLog(`Advanced streaming generation started with ID: ${data.streamId}`, 'success');
+        startAdvancedStreaming(data.streamId);
+      } else {
+        // Handle batch mode
+        setJobId(data.jobId);
+        addLog(`Advanced generation job started with ID: ${data.jobId}`, 'success');
+        startAdvancedPolling(data.jobId);
       }
 
     } catch (error) {
@@ -612,379 +720,6 @@ const AutoGenerate = ({ conflictData, apiConfig, onSuccess, onError, onNotificat
         onError(error);
       }
     }
-  };
-
-  // NEW: Streaming generation function with recovery support
-  const startStreamingGeneration = async (storyData, resumeFromChapter = 0) => {
-    try {
-      // Use existing outline that was already created
-      if (!outline || outline.length === 0) {
-        throw new Error('No outline available. Please create outline first.');
-      }
-      
-      // Check if we're resuming from a previous attempt
-      const startingChapter = resumeFromChapter || 0;
-      const remainingChapters = outline.length - startingChapter;
-      
-      if (startingChapter > 0) {
-        addLog(`🔄 Resuming from Chapter ${startingChapter + 1} (${remainingChapters} chapters remaining)`, 'info');
-      } else {
-        addLog(`📝 Using existing outline with ${outline.length} chapters`, 'info');
-      }
-      
-      // Set initial progress based on completed chapters
-      const initialProgress = 20 + (startingChapter / outline.length * 70);
-      setProgress(initialProgress);
-      
-      // Step 2: Start streaming generation
-      addLog('🎥 Step 2: Starting live chapter generation...', 'info');
-      
-      const streamResponse = await apiService.startStreamingGeneration(outline, {
-        genre: storyData.genre || 'fantasy',
-        wordCount: storyData.wordCount || 50000,
-        premise: storyData.synopsis,
-        resumeFromChapter: startingChapter, // Tell backend where to start
-        preferences: preferences,
-        qualitySettings: qualitySettings // Pass quality enhancement settings
-      });
-      
-      if (!streamResponse.success) {
-        throw new Error('Failed to start streaming');
-      }
-      
-      addLog(`🎬 Live stream started! Watch your novel being written...`, 'success');
-      
-      // Connect to stream
-      const eventSource = apiService.createChapterStream(streamResponse.streamId);
-      // Use existing completed chapters as starting point
-      const chapters = [...completedChapters];
-      
-      // Enhanced debugging for EventSource
-      eventSource.onopen = () => {
-        console.log('🎥 EventSource connection opened');
-        addLog('🔗 Live stream connection established', 'success');
-      };
-      
-      eventSource.onmessage = (event) => {
-        console.log('📨 Received stream event:', event.data);
-        try {
-          const data = JSON.parse(event.data);
-          console.log('📨 Parsed stream data:', data);
-          handleLiveStreamEvent(data, chapters, storyData);
-        } catch (error) {
-          console.error('Stream event parsing error:', error);
-        }
-      };
-      
-      eventSource.onerror = (error) => {
-        console.error('❌ Stream error:', error);
-        console.log('❌ EventSource readyState:', eventSource.readyState);
-        
-        // Calculate how many chapters we've completed so far
-        const currentProgress = chapters.length;
-        addLog(`❌ Live stream failed at Chapter ${currentProgress + 1} - switching to batch recovery mode`, 'warning');
-        eventSource.close();
-        
-        // Preserve streaming chapters in completedChapters state before switching to batch
-        setCompletedChapters(prevCompleted => {
-          const updated = [...prevCompleted];
-          chapters.forEach(chapter => {
-            const existingIndex = updated.findIndex(ch => ch.number === chapter.number);
-            if (existingIndex >= 0) {
-              updated[existingIndex] = chapter;
-            } else {
-              updated.push(chapter);
-            }
-          });
-          return updated.sort((a, b) => a.number - b.number);
-        });
-        
-        // Fallback to batch generation with recovery
-        addLog(`🔄 Resuming with batch generation from Chapter ${currentProgress + 1}...`, 'info');
-        startBatchGenerationWithRecovery(storyData, currentProgress, chapters).catch(fallbackError => {
-          console.error('Fallback generation error:', fallbackError);
-          throw fallbackError;
-        });
-      };
-      
-      // Store reference for cleanup
-      let streamTimeout;
-      const resetStreamTimeout = () => {
-        if (streamTimeout) clearTimeout(streamTimeout);
-        streamTimeout = setTimeout(() => {
-          const currentProgress = chapters.length;
-          console.log(`⏰ Stream timeout at Chapter ${currentProgress + 1} - switching to batch recovery`);
-          addLog(`⏰ Stream timeout - resuming with batch mode from Chapter ${currentProgress + 1}`, 'warning');
-          eventSource.close();
-          
-          // Preserve streaming chapters before switching to batch
-          setCompletedChapters(prevCompleted => {
-            const updated = [...prevCompleted];
-            chapters.forEach(chapter => {
-              const existingIndex = updated.findIndex(ch => ch.number === chapter.number);
-              if (existingIndex >= 0) {
-                updated[existingIndex] = chapter;
-              } else {
-                updated.push(chapter);
-              }
-            });
-            return updated.sort((a, b) => a.number - b.number);
-          });
-          
-          startBatchGenerationWithRecovery(storyData, currentProgress, chapters).catch(fallbackError => {
-            console.error('Timeout fallback generation error:', fallbackError);
-            throw fallbackError;
-          });
-        }, 300000); // 5 minute timeout
-      };
-      
-      resetStreamTimeout(); // Start the timeout
-      
-      // Update event handlers to reset timeout
-      const originalOnMessage = eventSource.onmessage;
-      eventSource.onmessage = (event) => {
-        resetStreamTimeout(); // Reset timeout on any message
-        originalOnMessage(event);
-      };
-      
-      abortControllerRef.current = { 
-        abort: () => {
-          if (streamTimeout) clearTimeout(streamTimeout);
-          eventSource.close();
-        }
-      };
-      
-    } catch (error) {
-      throw error;
-    }
-  };
-
-  // Handle streaming events with recovery tracking
-  const handleLiveStreamEvent = (data, chapters, storyData) => {
-    switch (data.type) {
-      case 'connected':
-        addLog(`🔗 Connected to live stream`, 'success');
-        break;
-        
-      case 'heartbeat':
-        console.log(`💓 Heartbeat: Chapter ${data.chapterNumber} - ${data.message}`);
-        setProgress(20 + (data.progress * 0.7)); // Update progress
-        break;
-        
-      case 'chapter_start':
-        addLog(`🖋️ Writing Chapter ${data.chapterNumber}: ${data.chapterTitle}...`, 'info');
-        setProgress(20 + (data.progress * 0.7)); // 20-90% range
-        break;
-        
-      case 'chapter_complete':
-        const chapter = {
-          ...data.chapter,
-          number: data.chapterNumber,
-          title: data.chapterTitle
-        };
-        chapters.push(chapter);
-        
-        // Update completedChapters state for recovery tracking
-        setCompletedChapters(prev => {
-          const updated = [...prev];
-          // Ensure we don't duplicate chapters
-          const existingIndex = updated.findIndex(ch => ch.number === chapter.number);
-          if (existingIndex >= 0) {
-            updated[existingIndex] = chapter;
-          } else {
-            updated.push(chapter);
-          }
-          return updated.sort((a, b) => a.number - b.number);
-        });
-        
-        addLog(`✅ Chapter ${data.chapterNumber} completed! (${data.wordCount} words)`, 'success');
-        setProgress(20 + (data.progress * 0.7));
-        
-        // Update result with current chapters
-        const currentResult = {
-          outline: outline,
-          chapters: [...chapters],
-          stats: {
-            totalWords: chapters.reduce((sum, ch) => sum + (ch.wordCount || 0), 0),
-            chapterCount: chapters.length
-          }
-        };
-        setResult(currentResult);
-        break;
-        
-      case 'chapter_error':
-        addLog(`❌ Error in Chapter ${data.chapterNumber}: ${data.error}`, 'error');
-        // Don't fail completely, try to continue or fallback
-        const currentProgress = chapters.length;
-        addLog(`🔄 Attempting to recover from Chapter ${currentProgress + 1}...`, 'info');
-        setTimeout(() => {
-          startBatchGenerationWithRecovery(storyData, currentProgress, chapters);
-        }, 2000);
-        break;
-        
-      case 'complete':
-        addLog(`🎉 Live generation complete! ${data.totalChapters} chapters, ${data.totalWords} words`, 'success');
-        setProgress(100);
-        setIsGenerating(false);
-        onSuccess(result);
-        break;
-        
-      case 'error':
-        addLog(`❌ Stream error: ${data.message}`, 'error');
-        // Attempt recovery instead of failing
-        const errorProgress = chapters.length;
-        addLog(`🔄 Attempting recovery from Chapter ${errorProgress + 1}...`, 'info');
-        startBatchGenerationWithRecovery(storyData, errorProgress, chapters);
-        break;
-        
-      default:
-        console.log('Unknown stream event:', data);
-    }
-  };
-
-  // Enhanced batch generation with recovery support
-  const startBatchGenerationWithRecovery = async (storyData, startFromChapter = 0, existingChapters = []) => {
-    try {
-      // Use existing outline that was already created
-      if (!outline || outline.length === 0) {
-        throw new Error('No outline available. Please create outline first.');
-      }
-      
-      const totalChapters = outline.length;
-      const remainingChapters = totalChapters - startFromChapter;
-      
-      if (startFromChapter > 0) {
-        addLog(`🔄 Resuming batch generation from Chapter ${startFromChapter + 1} (${remainingChapters} chapters remaining)`, 'info');
-      } else {
-        addLog(`📝 Using existing outline with ${outline.length} chapters`, 'info');
-      }
-      
-      // Set initial progress based on completed chapters
-      const initialProgress = 20 + (startFromChapter / totalChapters * 70);
-      setProgress(initialProgress);
-      
-      // Start with existing chapters (from streaming or previous batch)
-      const chapters = [...existingChapters];
-      
-      addLog(`📚 Generating remaining chapters (${startFromChapter + 1} to ${totalChapters})...`, 'info');
-      
-      for (let i = startFromChapter; i < totalChapters; i++) {
-        const chapterOutline = outline[i];
-        addLog(`Writing Chapter ${i + 1}: ${chapterOutline.title}...`, 'info');
-        
-        try {
-          // Generate individual chapter with shorter timeout
-          const chapterResponse = await apiService.makeRequest('/simple-generate-new/chapter', {
-            method: 'POST',
-            body: JSON.stringify({
-              chapterOutline,
-              context: {
-                previousChapters: chapters,
-                fullPremise: storyData.synopsis,
-                genre: storyData.genre || 'fantasy',
-                qualitySettings: qualitySettings // Move quality settings into context where backend expects it
-              },
-              preferences: preferences
-            }),
-            timeout: 300000 // 5 minutes per chapter for complex chapters
-          });
-          
-          if (chapterResponse.success && chapterResponse.chapter) {
-            // Ensure proper chapter numbering and ordering
-            const chapter = {
-              ...chapterResponse.chapter,
-              number: i + 1,
-              title: chapterResponse.chapter.title || `Chapter ${i + 1}`,
-              chapterIndex: i
-            };
-            
-            chapters.push(chapter);
-            
-            // Update completedChapters state for recovery tracking
-            setCompletedChapters(prev => {
-              const updated = [...prev];
-              // Ensure we don't duplicate chapters
-              const existingIndex = updated.findIndex(ch => ch.number === chapter.number);
-              if (existingIndex >= 0) {
-                updated[existingIndex] = chapter;
-              } else {
-                updated.push(chapter);
-              }
-              return updated.sort((a, b) => a.number - b.number);
-            });
-            
-            const progressPercent = 20 + Math.round((i + 1) / totalChapters * 70); // 20-90%
-            setProgress(progressPercent);
-            addLog(`✅ Chapter ${i + 1} completed (${chapter.wordCount || 'unknown'} words)`, 'success');
-            
-            // Update result with current progress
-            const currentResult = {
-              outline: outline,
-              chapters: [...chapters],
-              stats: {
-                totalWords: chapters.reduce((sum, ch) => sum + (ch.wordCount || 0), 0),
-                chapterCount: chapters.length
-              }
-            };
-            setResult(currentResult);
-            
-          } else {
-            throw new Error(`Failed to generate chapter ${i + 1}`);
-          }
-          
-        } catch (chapterError) {
-          addLog(`❌ Error generating chapter ${i + 1}: ${chapterError.message}`, 'error');
-          // Continue with remaining chapters rather than failing completely
-          addLog(`🔄 Continuing with next chapter...`, 'info');
-        }
-      }
-      
-      // Compile final result with better formatting
-      addLog('📖 Step 3: Compiling final novel...', 'info');
-      setProgress(95);
-      
-      // Sort chapters by number to ensure correct order
-      chapters.sort((a, b) => (a.number || 0) - (b.number || 0));
-      
-      // Create full novel text with proper formatting
-      const fullNovelText = chapters
-        .map(ch => {
-          const chapterTitle = ch.title || `Chapter ${ch.number || 'Unknown'}`;
-          const chapterContent = ch.content || ch.text || '';
-          return `# ${chapterTitle}\n\n${chapterContent}`;
-        })
-        .join('\n\n---\n\n');
-      
-      const data = {
-        outline: outline,
-        chapters: chapters,
-        fullNovel: fullNovelText,
-        stats: {
-          totalWords: chapters.reduce((sum, ch) => sum + (ch.wordCount || 0), 0),
-          chapterCount: chapters.length,
-          successfulChapters: chapters.filter(ch => ch.content || ch.text).length
-        }
-      };
-      
-      // Handle the response from simple generation
-      if (data && data.outline && data.chapters) {
-        addLog(`✅ Novel generation completed! Generated ${data.chapters.length} chapters`, 'success');
-        setResult(data);
-        setProgress(100);
-        setIsGenerating(false);
-        onSuccess(data);
-      } else {
-        throw new Error('Invalid response from simple generation');
-      }
-      
-    } catch (error) {
-      throw error; // Re-throw to be handled by main function
-    }
-  };
-
-  // Legacy batch generation (now calls recovery version)
-  const startBatchGeneration = async (storyData) => {
-    return startBatchGenerationWithRecovery(storyData, 0, []);
   };
 
   const createOutline = async () => {
@@ -1015,9 +750,7 @@ const AutoGenerate = ({ conflictData, apiConfig, onSuccess, onError, onNotificat
         chapters: calculatedChapters,
         targetChapterLength: storySetup.targetChapterLength,
         synopsis: storySetup.synopsis,
-        fictionLength: storySetup.fictionLength,
-        preferences: preferences,
-        qualitySettings: qualitySettings // Include quality enhancement settings
+        fictionLength: storySetup.fictionLength
       };
 
       // Debug logging
@@ -1034,7 +767,7 @@ const AutoGenerate = ({ conflictData, apiConfig, onSuccess, onError, onNotificat
 
       // Create a timeout promise to prevent infinite hanging
       const timeoutPromise = new Promise((_, reject) => {
-        setTimeout(() => reject(new Error('Outline creation timed out after 5 minutes')), 300000);
+        setTimeout(() => reject(new Error('Outline creation timed out after 2 minutes')), 120000);
       });
 
       // Race between API call and timeout
@@ -1055,44 +788,12 @@ const AutoGenerate = ({ conflictData, apiConfig, onSuccess, onError, onNotificat
     } catch (error) {
       console.error('Outline creation error:', error);
       
-      // Enhanced error logging and display
-      const errorInfo = {
-        message: error.message,
-        timestamp: new Date().toISOString(),
-        type: error.name || 'Error',
-        status: error.status || 0,
-        details: error.details || null,
-        stack: error.stack
-      };
-      
-      console.error('❌ Detailed Error Info:', errorInfo);
-      
       // Don't update error state if this was intentionally aborted
       if (error.name !== 'AbortError' && !abortControllerRef.current?.signal.aborted) {
         setError(error);
         setCurrentProcess('');
         setGenerationPhase('setup');
-        
-        // Create detailed error message
-        let errorMessage = `Outline creation failed: ${error.message}`;
-        
-        if (error.status) {
-          errorMessage += ` (HTTP ${error.status})`;
-        }
-        
-        if (error.details && error.details.errorCode) {
-          errorMessage += ` [${error.details.errorCode}]`;
-        }
-        
-        // Add suggestions if available
-        if (error.getSuggestions && typeof error.getSuggestions === 'function') {
-          const suggestions = error.getSuggestions();
-          if (suggestions.length > 0) {
-            errorMessage += `\n\nSuggestions:\n• ${suggestions.join('\n• ')}`;
-          }
-        }
-        
-        addLog(errorMessage, 'error');
+        addLog(`Outline creation failed: ${error.message}`, 'error');
         onError(error);
       } else if (error.name === 'AbortError') {
         addLog('Outline creation was cancelled', 'info');
@@ -1416,189 +1117,149 @@ const AutoGenerate = ({ conflictData, apiConfig, onSuccess, onError, onNotificat
     URL.revokeObjectURL(url);
   };
 
-  const downloadFullNovel = async () => {
+  const downloadFullNovel = () => {
+    if (!result) return;
+
+    let content = `${result.title}\n`;
+    content += `by ${result.author || 'Anonymous'}\n\n`;
+    content += `${result.description}\n\n`;
+    content += '='.repeat(50) + '\n\n';
+
+    if (result.chapters && result.chapters.length > 0) {
+      result.chapters.forEach((chapter, index) => {
+        content += `CHAPTER ${index + 1}: ${chapter.title}\n\n`;
+        content += chapter.content + '\n\n';
+        content += '-'.repeat(30) + '\n\n';
+      });
+    }
+
+    const filename = `${result.title.replace(/[^a-z0-9]/gi, '_').toLowerCase()}_novel.txt`;
+    handleDownload(content, filename);
+  };
+
+  const downloadAsWord = async () => {
     if (!result) return;
 
     try {
-      // Handle both old and new result formats
-      const title = result.title || storySetup.title || 'Generated Novel';
-      const author = result.author || 'AI Generated';
-      
-      // Create document sections
+      // Create document content
       const children = [];
-      
+
       // Title page
       children.push(
         new Paragraph({
-          children: [
-            new TextRun({
-              text: title,
-              bold: true,
-              size: 32,
-            }),
-          ],
-          heading: HeadingLevel.TITLE,
+          children: [new TextRun({
+            text: result.title,
+            bold: true,
+            size: 48,
+          })],
           alignment: AlignmentType.CENTER,
-          spacing: { after: 400 },
-        }),
-        new Paragraph({
-          children: [
-            new TextRun({
-              text: `by ${author}`,
-              italics: true,
-              size: 24,
-            }),
-          ],
-          alignment: AlignmentType.CENTER,
-          spacing: { after: 800 },
+          spacing: { after: 400 }
         })
       );
-      
-      // Add stats if available
-      if (result.stats) {
+
+      children.push(
+        new Paragraph({
+          children: [new TextRun({
+            text: `by ${result.author || 'Anonymous'}`,
+            size: 24,
+          })],
+          alignment: AlignmentType.CENTER,
+          spacing: { after: 800 }
+        })
+      );
+
+      // Description/Synopsis
+      if (result.description) {
         children.push(
           new Paragraph({
-            children: [
-              new TextRun({
-                text: `Total Words: ${result.stats.totalWords || 'Unknown'}`,
-                size: 20,
-              }),
-            ],
+            children: [new TextRun({
+              text: result.description,
+              italics: true,
+            })],
             alignment: AlignmentType.CENTER,
-            spacing: { after: 200 },
-          }),
-          new Paragraph({
-            children: [
-              new TextRun({
-                text: `Chapters: ${result.stats.chapterCount || 'Unknown'}`,
-                size: 20,
-              }),
-            ],
-            alignment: AlignmentType.CENTER,
-            spacing: { after: 400 },
+            spacing: { after: 800 }
           })
         );
       }
-      
-      // Page break before chapters
+
+      // Page break after title page
       children.push(
         new Paragraph({
-          children: [new TextRun({ text: "", break: 1 })],
-          pageBreakBefore: true,
+          children: [new TextRun({
+            text: "",
+            break: 1
+          })],
+          pageBreakBefore: true
         })
       );
 
-      // Add chapters
+      // Chapters
       if (result.chapters && result.chapters.length > 0) {
-        // Sort chapters by number to ensure correct order
-        const sortedChapters = [...result.chapters].sort((a, b) => (a.number || 0) - (b.number || 0));
-        
-        sortedChapters.forEach((chapter, index) => {
-          const chapterNum = chapter.number || chapter.chapterIndex + 1 || index + 1;
-          const chapterTitle = chapter.title || `Chapter ${chapterNum}`;
-          const chapterContent = chapter.content || chapter.text || 'No content available';
-          
-          // Chapter heading
+        result.chapters.forEach((chapter, index) => {
+          // Chapter title
           children.push(
             new Paragraph({
-              children: [
-                new TextRun({
-                  text: `Chapter ${chapterNum}`,
-                  bold: true,
-                  size: 28,
-                }),
-              ],
+              children: [new TextRun({
+                text: `CHAPTER ${index + 1}: ${chapter.title}`,
+                bold: true,
+                size: 32,
+              })],
               heading: HeadingLevel.HEADING_1,
-              spacing: { before: 400, after: 200 },
+              spacing: { before: 400, after: 400 }
             })
           );
-          
-          // Chapter title (if different from "Chapter X")
-          if (chapterTitle !== `Chapter ${chapterNum}`) {
-            children.push(
-              new Paragraph({
-                children: [
-                  new TextRun({
-                    text: chapterTitle,
-                    bold: true,
-                    size: 24,
-                  }),
-                ],
-                heading: HeadingLevel.HEADING_2,
-                spacing: { after: 300 },
-              })
-            );
-          }
-          
-          // Chapter content - split into paragraphs
-          const paragraphs = chapterContent.split('\n\n').filter(p => p.trim().length > 0);
+
+          // Chapter content - split by paragraphs
+          const paragraphs = chapter.content.split(/\n\s*\n/);
           paragraphs.forEach(paragraphText => {
-            children.push(
-              new Paragraph({
-                children: [
-                  new TextRun({
+            if (paragraphText.trim()) {
+              children.push(
+                new Paragraph({
+                  children: [new TextRun({
                     text: paragraphText.trim(),
                     size: 24,
-                  }),
-                ],
-                spacing: { after: 200 },
-                indent: { firstLine: 720 }, // First line indent
-              })
-            );
+                  })],
+                  spacing: { after: 200 }
+                })
+              );
+            }
           });
-          
-          // Add space between chapters (except for the last one)
-          if (index < sortedChapters.length - 1) {
+
+          // Add some space between chapters
+          if (index < result.chapters.length - 1) {
             children.push(
               new Paragraph({
-                children: [new TextRun({ text: "", break: 2 })],
-                spacing: { after: 400 },
+                children: [new TextRun({ text: "" })],
+                spacing: { after: 600 }
               })
             );
           }
-        });
-      } else if (result.fullNovel) {
-        // Fallback to full novel text if chapters aren't available
-        const paragraphs = result.fullNovel.split('\n\n').filter(p => p.trim().length > 0);
-        paragraphs.forEach(paragraphText => {
-          children.push(
-            new Paragraph({
-              children: [
-                new TextRun({
-                  text: paragraphText.trim(),
-                  size: 24,
-                }),
-              ],
-              spacing: { after: 200 },
-              indent: { firstLine: 720 },
-            })
-          );
         });
       }
 
-      // Create the document
+      // Create document
       const doc = new Document({
-        sections: [
-          {
-            properties: {},
-            children: children,
-          },
-        ],
+        sections: [{
+          properties: {},
+          children: children
+        }]
       });
 
-      // Generate and download the document using browser-compatible method
+      // Generate and download
       const blob = await Packer.toBlob(doc);
-      const filename = `${title.replace(/[^a-z0-9]/gi, '_').toLowerCase()}_novel.docx`;
-      
-      saveAs(blob, filename);
-      
-      addLog(`✅ Novel downloaded as ${filename}`, 'success');
-      onNotification('Novel downloaded successfully!', 'success');
-      
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `${result.title.replace(/[^a-z0-9]/gi, '_').toLowerCase()}_novel.docx`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+
+      addLog('Novel downloaded as Word document successfully!', 'success');
     } catch (error) {
-      console.error('Download error:', error);
-      addLog(`❌ Download failed: ${error.message}`, 'error');
-      onError(new Error(`Failed to download novel: ${error.message}`));
+      console.error('Error creating Word document:', error);
+      addLog('Failed to create Word document. Please try again.', 'error');
     }
   };
 
@@ -1614,7 +1275,6 @@ const AutoGenerate = ({ conflictData, apiConfig, onSuccess, onError, onNotificat
     setCurrentProcess('');
     setGenerationPhase('setup');
     setOutline([]);
-    setCompletedChapters([]); // Clear recovery state
     
     if (intervalRef.current) {
       clearInterval(intervalRef.current);
@@ -1633,294 +1293,6 @@ const AutoGenerate = ({ conflictData, apiConfig, onSuccess, onError, onNotificat
       addLog('Outline creation cancelled by user', 'warning');
       onNotification('Outline creation cancelled', 'warning');
     }
-  };
-
-  const forceStopGeneration = () => {
-    // Force stop all generation processes
-    if (abortControllerRef.current) {
-      abortControllerRef.current.abort();
-    }
-    
-    if (intervalRef.current) {
-      clearInterval(intervalRef.current);
-    }
-    
-    setIsGenerating(false);
-    setIsCreatingOutline(false);
-    setJobId(null);
-    setCurrentProcess('');
-    setGenerationPhase('setup');
-    // Note: Don't clear completedChapters here - user might want to resume
-    addLog('🛑 Generation forcefully stopped by user', 'warning');
-    onNotification('Generation stopped', 'warning');
-  };
-
-  // Generate quality enhancement instructions for AI prompts
-  const generateQualityInstructions = (qualitySettings) => {
-    const instructions = [];
-    
-    if (qualitySettings.varyTheologicalExplanations) {
-      instructions.push("THEOLOGICAL VARIETY: Avoid repeating identical theological explanations. Each mention of Trinity, divine concepts, or spiritual truths should use unique phrasing, metaphors, and perspectives. Never use the exact same phrases like 'Father's authority, Son's grace, Spirit's witness' repeatedly.");
-    }
-    
-    if (qualitySettings.showDontTellTheology) {
-      instructions.push("SHOW THEOLOGY: Demonstrate theological concepts through character experiences, actions, and discoveries rather than explicit explanations. Let readers understand spiritual truths through story events, not direct statements.");
-    }
-    
-    if (qualitySettings.includeSetbacks) {
-      instructions.push("REALISTIC SETBACKS: Include genuine setbacks, failures, and moments where characters struggle or regress. Character growth should not be linear - show backsliding, doubt, and realistic obstacles to spiritual development.");
-    }
-    
-    if (qualitySettings.showInternalConflict) {
-      instructions.push("INTERNAL CONFLICT: Show character internal struggles through actions, thoughts, and physical reactions rather than stating them directly. Demonstrate tension through behavior, not exposition.");
-    }
-    
-    if (qualitySettings.allowBacksliding) {
-      instructions.push("CHARACTER REGRESSION: Allow characters to occasionally misapply lessons, doubt their progress, or revert to old patterns. Show the messiness of real spiritual growth with moments of weakness and confusion.");
-    }
-    
-    if (qualitySettings.allowUnevenPacing) {
-      instructions.push("UNEVEN PACING: Not all story elements should receive equal treatment. Some characters may develop faster, some regions may be more mysterious, some themes may need more exploration time. Embrace narrative asymmetry.");
-    }
-    
-    if (qualitySettings.varyCharacterFocus) {
-      instructions.push("VARIED CHARACTER FOCUS: Different characters should receive different amounts of attention and development. Not everyone needs equal screen time or parallel growth patterns. Let some characters be more prominent than others naturally.");
-    }
-    
-    if (qualitySettings.uniqueVoices) {
-      instructions.push("DISTINCT VOICES: Each character must have a unique speaking pattern, vocabulary, and style based on their background, age, and personality. Sages should not sound like young characters; different regions should have different speech patterns.");
-    }
-    
-    if (qualitySettings.characterSpecificSpeech) {
-      instructions.push("CHARACTER-SPECIFIC METAPHORS: Tailor each character's metaphors and references to their background - culinary metaphors for cooks, architectural references for builders, natural imagery for outdoor characters, formal language for authority figures.");
-    }
-    
-    if (qualitySettings.enhancedSensoryDetails) {
-      instructions.push("SENSORY RICHNESS: Include specific sounds, smells, textures, tastes, and visual details. Avoid generic adjectives like 'beautiful' or 'majestic.' Use concrete sensory descriptions that make the world feel lived-in and real.");
-    }
-    
-    if (qualitySettings.showEmotionsPhysically) {
-      instructions.push("PHYSICAL EMOTIONS: Instead of stating emotions ('he felt peaceful'), describe physical sensations ('his shoulders relaxed, his breathing slowed'). Show emotional states through body language, posture, and physical reactions.");
-    }
-    
-    if (qualitySettings.includeMoralComplexity) {
-      instructions.push("MORAL AMBIGUITY: Include situations where the right choice isn't immediately clear. Create scenarios where following one good principle might conflict with another, requiring genuine wisdom and discernment to navigate.");
-    }
-    
-    if (qualitySettings.competingValues) {
-      instructions.push("COMPETING VALUES: Show moments where characters must choose between two good things, or where different aspects of faith seem to pull in different directions. Let characters wrestle with genuine ethical dilemmas.");
-    }
-    
-    if (qualitySettings.imperfectTiming) {
-      instructions.push("REALISTIC TIMING: Help and wisdom don't always arrive at the perfect moment. Sometimes characters must wait, sometimes help comes too late, sometimes they must figure things out independently. Avoid convenient mentor speeches that solve problems instantly.");
-    }
-    
-    if (qualitySettings.allowSelfDiscovery) {
-      instructions.push("SELF-DISCOVERY: Let characters occasionally solve problems through their own insight, struggle, and growth rather than always receiving wisdom from mentors. Show independent spiritual development and personal revelation.");
-    }
-    
-    if (qualitySettings.varySentenceStructure) {
-      instructions.push("SENTENCE VARIETY: Dramatically vary sentence length and structure. Use short, punchy sentences for impact. Create flowing, complex sentences for description. Mix simple and elaborate constructions for natural rhythm.");
-    }
-    
-    if (qualitySettings.dramaticPacing) {
-      instructions.push("DRAMATIC PACING: Use sentence fragments for emphasis. Employ run-on sentences for building tension or excitement. Vary paragraph length to control pacing - short paragraphs for quick action, longer ones for reflection.");
-    }
-    
-    if (qualitySettings.includeSurprises) {
-      instructions.push("GENUINE SURPRISES: Include plot developments that readers cannot easily predict. Introduce unexpected character reactions, surprising solutions to problems, or events that don't follow the obvious allegorical pattern.");
-    }
-    
-    if (qualitySettings.organicPlotTwists) {
-      instructions.push("ORGANIC ELEMENTS: Occasionally introduce characters, events, or plot elements that don't fit neatly into the allegorical framework. Let some story aspects exist for narrative richness rather than symbolic purpose.");
-    }
-    
-    if (qualitySettings.complexAntagonist) {
-      instructions.push("COMPLEX ANTAGONIST: Develop the antagonist with compelling backstory and understandable motivations. They should have reasons for their beliefs that make sense from their perspective, even if they're ultimately wrong.");
-    }
-    
-    if (qualitySettings.sympatheticVillain) {
-      instructions.push("SYMPATHETIC ANTAGONIST: Make the antagonist occasionally sympathetic or relatable. Perhaps they've experienced suffering that explains their perspective, or they genuinely believe their approach would help people, despite being misguided.");
-    }
-    
-    // Advanced Anti-AI Pattern Settings
-    if (qualitySettings.asymmetricalCharacterArcs) {
-      instructions.push("ASYMMETRICAL CHARACTER DEVELOPMENT: Characters should follow completely different growth patterns - some develop quickly, others slowly, some focus on spiritual growth while others learn practical wisdom. Avoid synchronized character development where everyone learns similar lessons at similar paces.");
-    }
-    
-    if (qualitySettings.genuineCharacterConflict) {
-      instructions.push("AUTHENTIC CHARACTER DISAGREEMENTS: Characters should have meaningful disagreements about methods, priorities, and interpretations of events. Let characters argue, misunderstand each other, and reach different conclusions about the same situation. Not all conflicts should resolve neatly.");
-    }
-    
-    if (qualitySettings.asymmetricalThematicFocus) {
-      instructions.push("UNEVEN THEMATIC ATTENTION: Give different themes vastly different amounts of exploration. Some spiritual concepts might be mentioned briefly while others get deep exploration. Some chapters might focus heavily on one theme while ignoring others completely.");
-    }
-    
-    if (qualitySettings.messyResolutions) {
-      instructions.push("IMPERFECT ENDINGS: Not all conflicts should resolve cleanly. Some problems should have lasting consequences, some relationships should remain strained, some questions should stay unanswered. Show that some damage takes time to heal or may never fully heal.");
-    }
-    
-    if (qualitySettings.chapterVoiceVariation) {
-      instructions.push("CHAPTER VOICE SHIFTS: Each chapter should feel like it was written in a different session or mood. Vary the complexity of descriptions, the pace of dialogue, the focus on action vs reflection. Some chapters should be more introspective, others more action-focused.");
-    }
-    
-    if (qualitySettings.theologicalAmbiguity) {
-      instructions.push("SPIRITUAL UNCERTAINTY: Include moments where characters don't understand God's will, where prayer doesn't bring clarity, where faithful people reach different conclusions. Some theological questions should remain open, some character's spiritual experiences should be ambiguous.");
-    }
-    
-    if (qualitySettings.paceInconsistency) {
-      instructions.push("IRREGULAR PACING: Some chapters should move very slowly with detailed description and contemplation, others should rush through events quickly. Don't maintain consistent pacing - let the narrative speed vary naturally based on content and mood.");
-    }
-    
-    if (qualitySettings.imperfectDialogue) {
-      instructions.push("REALISTIC CONVERSATION: Characters should interrupt each other, misunderstand, speak at cross-purposes, and have conversations that don't reach clear conclusions. Include awkward silences, half-finished thoughts, and dialogue that doesn't always advance the plot.");
-    }
-    
-    if (qualitySettings.humanInconsistencies) {
-      instructions.push("CHARACTER CONTRADICTIONS: Characters should occasionally act inconsistently with their established personalities - being wise in one situation but foolish in another, brave sometimes but fearful at other times. Show human complexity and unpredictability.");
-    }
-    
-    if (qualitySettings.imperfectWisdom) {
-      instructions.push("FLAWED MENTOR GUIDANCE: Mentors and wise characters should sometimes give incomplete advice, be wrong about situations, or struggle with their own doubts. Their wisdom should feel earned through struggle rather than effortlessly perfect.");
-    }
-    
-    if (qualitySettings.naturalLanguageFlaws) {
-      instructions.push("ORGANIC LANGUAGE PATTERNS: Include natural speech patterns like trailing off, starting sentences differently than intended, using imprecise language, and having characters search for the right words. Avoid overly polished, literary dialogue.");
-    }
-    
-    if (qualitySettings.inconsistentEmotions) {
-      instructions.push("EMOTIONAL COMPLEXITY: Characters should experience conflicting emotions simultaneously - feeling grateful but resentful, hopeful but afraid, loving but frustrated. Emotional states should shift unexpectedly and not always match the situation logically.");
-    }
-    
-    if (qualitySettings.narrativeAsymmetry) {
-      instructions.push("STORY STRUCTURE IRREGULARITY: Chapters should vary dramatically in length, focus, and importance. Some chapters should feel transitional, others climactic. Don't follow a rigid three-act structure - let the story develop organically with uneven emphasis.");
-    }
-    
-    if (qualitySettings.authenticImperfection) {
-      instructions.push("EMBRACE FLAWS: Include moments that feel slightly awkward, conversations that don't quite work, descriptions that are imperfect, and plot elements that are rough around the edges. Perfect prose can feel artificial - aim for authentic human storytelling.");
-    }
-    
-    if (qualitySettings.randomMoments) {
-      instructions.push("ORGANIC DETAILS: Include small, seemingly insignificant moments that don't advance the plot - characters noticing random details, having brief interactions that don't lead anywhere, or experiencing minor events that feel human but aren't symbolically important.");
-    }
-    
-    // ITERATION 3 CRITIQUE RESPONSES - Advanced Human-Like Writing
-    
-    if (qualitySettings.concreteEmotionalStakes) {
-      instructions.push("GROUNDED MOTIVATION: Give characters tangible, relatable motivations that drive the plot - missing family members, career ambitions, financial struggles, health concerns. Avoid abstract concepts as primary drivers; root character goals in concrete, emotional stakes that readers can immediately understand.");
-    }
-    
-    if (qualitySettings.personalDrivingForces) {
-      instructions.push("SPECIFIC CHARACTER GOALS: Each character needs a clear, personal objective that creates urgency and forward momentum. A detective seeking justice for their partner's death, an artist trying to save their studio, a parent protecting their child - make goals specific and emotionally resonant.");
-    }
-    
-    if (qualitySettings.characterSpecificBackgrounds) {
-      instructions.push("PROFESSION-ROOTED TRAITS: Characters' occupations, experiences, and personal histories should deeply influence how they speak, think, and problem-solve. A chef notices flavors and textures, a mechanic sees how things are broken or functioning, a teacher naturally explains concepts to others.");
-    }
-    
-    if (qualitySettings.breakTheFormula) {
-      instructions.push("BREAK EPISODIC PATTERNS: Avoid predictable chapter structures like Travel→Arrive→Learn→Trial→Reflect→Move On. Mix up the order, combine elements, skip steps entirely, or reverse the sequence. Let some challenges begin during travel, some lessons emerge during trials, some reflection happen while moving.");
-    }
-    
-    if (qualitySettings.overlappingChallenges) {
-      instructions.push("LAYERED CONFLICTS: Don't resolve one problem completely before introducing the next. Characters should face multiple, simultaneous challenges that complicate each other. While dealing with external threats, they're also wrestling with internal doubts, relationship tensions, and resource limitations.");
-    }
-    
-    if (qualitySettings.interruptedReflection) {
-      instructions.push("DISRUPTED CONTEMPLATION: When characters are processing events or having meaningful conversations, interrupt them with urgent action, new arrivals, environmental hazards, or pressing deadlines. Real life doesn't pause for perfect moments of reflection.");
-    }
-    
-    if (qualitySettings.onTheRoadLearning) {
-      instructions.push("MOBILE DISCOVERY: Characters should gain insights and solve problems while traveling, working, or in the middle of other activities. Not all important realizations happen during formal conversations or designated learning moments - wisdom emerges during mundane activities.");
-    }
-    
-    if (qualitySettings.combineRedundantChapters) {
-      instructions.push("MERGE REFLECTION WITH ACTION: Instead of separate chapters for processing events, weave contemplation into active scenes. Characters reflect while fighting, traveling, working, or dealing with immediate challenges. Maintain narrative momentum by avoiding pure exposition chapters.");
-    }
-    
-    if (qualitySettings.tangibleAntagonistGoals) {
-      instructions.push("CONCRETE VILLAIN OBJECTIVES: Antagonists need specific, achievable goals beyond abstract philosophies. Instead of 'wanting to corrupt the world,' give them concrete aims: seizing a specific territory, gaining control of resources, eliminating particular rivals, or achieving personal revenge. Show how their success would tangibly harm the protagonists.");
-    }
-    
-    if (qualitySettings.realWorldConsequences) {
-      instructions.push("PHYSICAL AND EMOTIONAL IMPACT: Conflicts should have visible, lasting effects on characters and their environment. Injuries that slow characters down, damaged relationships that affect cooperation, destroyed resources that limit options, traumatic experiences that change behavior patterns.");
-    }
-    
-    if (qualitySettings.heroesCanFail) {
-      instructions.push("MEANINGFUL PROTAGONIST FAILURES: Allow main characters to make genuinely wrong choices that create serious problems. Let their good intentions backfire, their assumptions prove incorrect, their skills prove inadequate. These failures should have consequences that affect the plot and force character growth.");
-    }
-    
-    if (qualitySettings.misinterpretedGuidance) {
-      instructions.push("CONFUSED INTERPRETATION: When characters receive advice, guidance, or information, let them sometimes misunderstand the meaning or apply it incorrectly. This creates authentic learning experiences and shows that wisdom isn't always easily transferred from one person to another.");
-    }
-    
-    if (qualitySettings.backfiredSolutions) {
-      instructions.push("UNINTENDED CONSEQUENCES: Well-intentioned actions should sometimes make situations worse. Attempts to help someone might offend them, efforts to solve one problem might create two new ones, strategies that worked before might fail in new circumstances.");
-    }
-    
-    if (qualitySettings.avoidCommonAIMetaphors) {
-      instructions.push("AVOID CLICHÉD METAPHORS: Replace overused phrases like 'tapestry of,' 'symphony of,' 'mosaic of,' 'testament to,' 'kaleidoscope of,' 'labyrinth of,' and 'nexus of.' Use specific, concrete imagery instead. Instead of 'symphony of sounds,' describe the actual sounds: 'car horns blaring over the hiss of bus brakes and the clatter of high heels on wet pavement.'");
-    }
-    
-    if (qualitySettings.uniqueSensoryDescriptions) {
-      instructions.push("SPECIFIC SENSORY DETAILS: Use unusual, specific sensory descriptions rather than generic ones. Instead of 'sweet smell,' try 'the metallic sweetness of artificial cherry.' Instead of 'loud noise,' try 'a sound like someone dropping a toolbox down concrete stairs.' Make readers experience the scene through unique sensory combinations.");
-    }
-    
-    if (qualitySettings.embraceImperfection) {
-      instructions.push("EMBRACE LINGUISTIC IMPERFECTION: Use sentence fragments for emphasis. Let characters trail off mid-sentence with em-dashes. Include interruptions, overlapping dialogue, incomplete thoughts. Mix grammatically perfect sentences with natural speech patterns that include hesitations, repetitions, and verbal stumbles.");
-    }
-    
-    if (qualitySettings.grammaticalVariation) {
-      instructions.push("VARIED GRAMMAR PATTERNS: Don't maintain perfect grammar throughout. Include run-on sentences that capture excited or anxious thoughts, sentence fragments that create impact, dangling modifiers that reflect how people actually speak and think. Balance clarity with authenticity.");
-    }
-    
-    if (qualitySettings.organicLanguageFlow) {
-      instructions.push("NATURAL SPEECH RHYTHMS: Characters should speak with realistic hesitations ('I mean, uh, what I'm trying to say is...'), verbal tics ('you know,' 'like,' 'actually'), false starts ('The thing is—no, wait, let me think'), and natural repetitions that reflect how people actually communicate.");
-    }
-    
-    if (qualitySettings.protagonistDrivenDiscovery) {
-      instructions.push("CHARACTER-LED INSIGHT: Let protagonists reach important conclusions through their own observation, deduction, and experience rather than being told by mentors or wise characters. Show them noticing patterns, making connections, and developing understanding independently.");
-    }
-    
-    if (qualitySettings.reduceMentorPresence) {
-      instructions.push("LIMITED MENTOR GUIDANCE: Wise characters should provide minimal, indirect assistance. Instead of explaining solutions, they might ask probing questions, share seemingly unrelated stories, or simply be absent when protagonists face crucial decisions. This forces characters to rely on their own judgment.");
-    }
-    
-    if (qualitySettings.charactersSolveProblems) {
-      instructions.push("INDEPENDENT PROBLEM-SOLVING: Protagonists should use their established skills, knowledge, and personality traits to overcome obstacles. A craftsperson should solve problems through making or fixing things, a scholar through research and analysis, a leader through organizing people.");
-    }
-    
-    if (qualitySettings.internalWisdomGrowth) {
-      instructions.push("SELF-DEVELOPED UNDERSTANDING: Characters should develop wisdom through internal reflection, trial and error, and personal experience rather than external teaching. Show them wrestling with concepts, testing ideas, and gradually building understanding from within.");
-    }
-    
-    if (qualitySettings.allowWrongConclusions) {
-      instructions.push("MISINTERPRETATION AND CORRECTION: Characters should sometimes reach incorrect conclusions about events, people, or situations. Let them act on these misunderstandings and discover their mistakes through experience rather than immediate correction from others.");
-    }
-    
-    if (qualitySettings.colloquialSpeech) {
-      instructions.push("REGIONAL AND SOCIAL SPEECH PATTERNS: Characters should use appropriate slang, contractions, and informal language based on their background, education, and social context. A street-smart teenager speaks differently than a university professor, who speaks differently than a rural farmer.");
-    }
-    
-    if (qualitySettings.incompleteThoughts) {
-      instructions.push("FRAGMENTED DIALOGUE: Include half-finished sentences, interruptions, overlapping speech, and thoughts that trail off. 'I was thinking maybe we could—' 'Oh, that reminds me!' 'What I meant was... never mind, it's complicated.' Show how real conversations actually unfold.");
-    }
-    
-    if (qualitySettings.characterSpecificVocabulary) {
-      instructions.push("UNIQUE WORD CHOICES: Each character should have a distinct vocabulary reflecting their education, interests, and personality. A medical professional uses precise terminology, an artist describes things in visual terms, a musician hears rhythm and melody in everything.");
-    }
-    
-    if (qualitySettings.conversationalMomentum) {
-      instructions.push("NATURAL CONVERSATION FLOW: Dialogue should flow with realistic rhythm rather than perfect turn-taking. Include overlapping speech, quick exchanges, long pauses, subject changes, and the natural ebb and flow of real conversation where not every comment gets a direct response.");
-    }
-    
-    if (qualitySettings.unequivalentResponses) {
-      instructions.push("INDIRECT RESPONSES: Characters don't always directly answer questions or address points made by others. They might deflect, change subjects, answer different questions, or respond to subtext rather than stated words. This creates more realistic, complex dialogue patterns.");
-    }
-    
-    return instructions.length > 0 ? 
-      `\n\nWRITING QUALITY ENHANCEMENT INSTRUCTIONS:\n${instructions.map(inst => `• ${inst}`).join('\n')}\n` : 
-      '';
   };
 
   if (result) {
@@ -1948,7 +1320,14 @@ const AutoGenerate = ({ conflictData, apiConfig, onSuccess, onError, onNotificat
             className="btn btn-success btn-large"
             onClick={downloadFullNovel}
           >
-            📥 Download as Word Document (.docx)
+            📥 Download as Text
+          </button>
+          
+          <button 
+            className="btn btn-primary btn-large"
+            onClick={downloadAsWord}
+          >
+            📄 Download as Word
           </button>
           
           <button 
@@ -1965,23 +1344,19 @@ const AutoGenerate = ({ conflictData, apiConfig, onSuccess, onError, onNotificat
             {result.chapters?.map((chapter, index) => (
               <div key={index} className="chapter-item auto-generated">
                 <div className="chapter-header">
-                  <h4>Chapter {chapter.number || index + 1}: {chapter.title || `Chapter ${index + 1}`}</h4>
+                  <h4>Chapter {index + 1}: {chapter.title}</h4>
                   <div className="chapter-meta">
-                    <span className="word-count">{chapter.wordCount || 'Unknown'} words</span>
+                    <span className="word-count">{chapter.wordCount} words</span>
                     <button 
                       className="btn btn-small"
-                      onClick={() => {
-                        const content = chapter.content || chapter.text || 'No content available';
-                        const filename = `chapter_${chapter.number || index + 1}_${(chapter.title || '').replace(/[^a-z0-9]/gi, '_').toLowerCase()}.txt`;
-                        handleDownload(content, filename);
-                      }}
+                      onClick={() => handleDownload(chapter.content, `chapter_${index + 1}.txt`)}
                     >
                       📄 Download
                     </button>
                   </div>
                 </div>
                 <div className="chapter-preview">
-                  {(chapter.content || chapter.text || 'No content available').substring(0, 300)}...
+                  {chapter.content.substring(0, 300)}...
                 </div>
               </div>
             ))}
@@ -2098,8 +1473,8 @@ const AutoGenerate = ({ conflictData, apiConfig, onSuccess, onError, onNotificat
                         className="form-input"
                         min={fictionLengths[selectedLengthCategory].minWords}
                         max={fictionLengths[selectedLengthCategory].maxWords}
-                        value={storySetup.wordCount || ''}
-                        onChange={(e) => setStorySetup(prev => ({ ...prev, wordCount: parseInt(e.target.value) || 0 }))}
+                        value={storySetup.wordCount}
+                        onChange={(e) => setStorySetup(prev => ({ ...prev, wordCount: parseInt(e.target.value) }))}
                       />
                       <small>Range: {fictionLengths[selectedLengthCategory].range}</small>
                     </div>
@@ -2112,8 +1487,8 @@ const AutoGenerate = ({ conflictData, apiConfig, onSuccess, onError, onNotificat
                         min="500"
                         max="5000"
                         step="100"
-                        value={storySetup.targetChapterLength || ''}
-                        onChange={(e) => setStorySetup(prev => ({ ...prev, targetChapterLength: parseInt(e.target.value) || 2000 }))}
+                        value={storySetup.targetChapterLength}
+                        onChange={(e) => setStorySetup(prev => ({ ...prev, targetChapterLength: parseInt(e.target.value) }))}
                       />
                     </div>
 
@@ -2125,8 +1500,8 @@ const AutoGenerate = ({ conflictData, apiConfig, onSuccess, onError, onNotificat
                         min="100"
                         max="1000"
                         step="50"
-                        value={storySetup.chapterVariance || ''}
-                        onChange={(e) => setStorySetup(prev => ({ ...prev, chapterVariance: parseInt(e.target.value) || 500 }))}
+                        value={storySetup.chapterVariance}
+                        onChange={(e) => setStorySetup(prev => ({ ...prev, chapterVariance: parseInt(e.target.value) }))}
                       />
                       <small>Chapters can be ±{storySetup.chapterVariance} words from target</small>
                     </div>
@@ -2139,7 +1514,7 @@ const AutoGenerate = ({ conflictData, apiConfig, onSuccess, onError, onNotificat
                         <strong>Estimated Chapters:</strong> {calculatedChapters}
                       </div>
                       <div className="stat">
-                        <strong>Average Chapter Length:</strong> {calculatedChapters > 0 ? Math.round(storySetup.wordCount / calculatedChapters) : 0} words
+                        <strong>Average Chapter Length:</strong> {Math.round(storySetup.wordCount / calculatedChapters)} words
                       </div>
                       <div className="stat">
                         <strong>Chapter Range:</strong> {storySetup.targetChapterLength - storySetup.chapterVariance} - {storySetup.targetChapterLength + storySetup.chapterVariance} words
@@ -2153,11 +1528,7 @@ const AutoGenerate = ({ conflictData, apiConfig, onSuccess, onError, onNotificat
               {calculatedChapters > 0 && (
                 <div className="setup-section">
                   <h4>📝 Story Synopsis</h4>
-                  <p>
-                    Provide a detailed synopsis. <strong>Recommended: 12K-20K characters (~2,000-3,500 words)</strong> for optimal AI processing.
-                    <br />
-                    <small style={{ color: '#666' }}>Up to 60,000 characters supported, but larger premises may timeout.</small>
-                  </p>
+                  <p>Provide a detailed synopsis (up to 10,000 words / 60,000 characters) - the more detail, the better your novel!</p>
                   
                   <div className="form-group">
                     <textarea
@@ -2176,38 +1547,10 @@ const AutoGenerate = ({ conflictData, apiConfig, onSuccess, onError, onNotificat
                       }}
                     />
                     <div className="character-count">
-                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                        <span>
-                          {storySetup.synopsis.length.toLocaleString()} / 60,000 characters (~{Math.round(storySetup.synopsis.length / 6)} words)
-                        </span>
-                        <span style={{ 
-                          fontSize: '12px', 
-                          color: storySetup.synopsis.length <= 20000 ? '#22c55e' : 
-                                 storySetup.synopsis.length <= 30000 ? '#f59e0b' : '#ef4444',
-                          fontWeight: 'bold'
-                        }}>
-                          {storySetup.synopsis.length <= 12000 && '✅ Optimal'}
-                          {storySetup.synopsis.length > 12000 && storySetup.synopsis.length <= 20000 && '🎯 Ideal'}
-                          {storySetup.synopsis.length > 20000 && storySetup.synopsis.length <= 30000 && '⚠️ Large'}
-                          {storySetup.synopsis.length > 30000 && '🚨 Very Large'}
-                        </span>
-                      </div>
-                      
-                      {storySetup.synopsis.length > 20000 && storySetup.synopsis.length <= 30000 && (
-                        <div style={{ color: '#f59e0b', fontSize: '12px', marginTop: '5px' }}>
-                          ⚠️ Large premise detected. May take 60-90 seconds to process.
-                        </div>
-                      )}
-                      
-                      {storySetup.synopsis.length > 30000 && (
-                        <div style={{ color: '#ef4444', fontSize: '12px', marginTop: '5px' }}>
-                          🚨 Very large premise. Risk of timeouts. Consider using 20K characters (~3,500 words) for optimal results.
-                        </div>
-                      )}
-                      
-                      {storySetup.synopsis.length <= 20000 && storySetup.synopsis.length > 0 && (
-                        <div style={{ color: '#22c55e', fontSize: '12px', marginTop: '5px' }}>
-                          ✅ Great size! Should process reliably in 30-60 seconds.
+                      {storySetup.synopsis.length.toLocaleString()} / 60,000 characters (~{Math.round(storySetup.synopsis.length / 6)} words)
+                      {storySetup.synopsis.length > 50000 && (
+                        <div style={{ color: 'orange', fontSize: '12px', marginTop: '5px' }}>
+                          ⚠️ Very large synopsis detected. If you experience issues, try breaking it into smaller sections.
                         </div>
                       )}
                     </div>
@@ -2238,13 +1581,27 @@ const AutoGenerate = ({ conflictData, apiConfig, onSuccess, onError, onNotificat
                   <p>Finally, give your masterpiece a title (you can always change this later):</p>
                   
                   <div className="form-group">
-                    <input
-                      type="text"
-                      className="form-input title-input"
-                      placeholder="Enter your novel title..."
-                      value={storySetup.title}
-                      onChange={(e) => setStorySetup(prev => ({ ...prev, title: e.target.value }))}
-                    />
+                    <div className="title-input-group">
+                      <input
+                        type="text"
+                        className="form-input title-input"
+                        placeholder="Enter your novel title..."
+                        value={storySetup.title}
+                        onChange={(e) => setStorySetup(prev => ({ ...prev, title: e.target.value }))}
+                      />
+                      <button
+                        type="button"
+                        className="auto-title-btn"
+                        onClick={() => {
+                          const autoTitle = generateAutoTitle(storySetup.genre, storySetup.subgenre);
+                          setStorySetup(prev => ({ ...prev, title: autoTitle }));
+                        }}
+                        title="Generate automatic title based on genre and timestamp"
+                      >
+                        🎯 Auto
+                      </button>
+                    </div>
+                    <small className="help-text">Click "Auto" to generate a timestamp-based title, or enter your own</small>
                   </div>
 
                   <div className="generation-options">
@@ -2449,520 +1806,12 @@ const AutoGenerate = ({ conflictData, apiConfig, onSuccess, onError, onNotificat
                 </div>
               </div>
 
-              {/* Writing Quality Enhancement Settings */}
-              <div className="generation-preferences quality-settings">
-                <h3>🎨 Writing Quality Enhancement</h3>
-                <p className="quality-description">
-                  Advanced settings to make AI writing more natural, varied, and engaging
-                </p>
-                
-                <div className="quality-categories">
-                  <div className="quality-category">
-                    <h4>📖 Narrative Style</h4>
-                    <div className="preferences-checkboxes">
-                      <label className="form-checkbox">
-                        <input
-                          type="checkbox"
-                          checked={qualitySettings.varyTheologicalExplanations}
-                          onChange={(e) => setQualitySettings(prev => ({ ...prev, varyTheologicalExplanations: e.target.checked }))}
-                        />
-                        Vary theological explanations (avoid repetitive phrasing)
-                      </label>
-                      
-                      <label className="form-checkbox">
-                        <input
-                          type="checkbox"
-                          checked={qualitySettings.showDontTellTheology}
-                          onChange={(e) => setQualitySettings(prev => ({ ...prev, showDontTellTheology: e.target.checked }))}
-                        />
-                        Show theology through character experiences
-                      </label>
-                      
-                      <label className="form-checkbox">
-                        <input
-                          type="checkbox"
-                          checked={qualitySettings.allowUnevenPacing}
-                          onChange={(e) => setQualitySettings(prev => ({ ...prev, allowUnevenPacing: e.target.checked }))}
-                        />
-                        Allow uneven pacing and focus distribution
-                      </label>
-                      
-                      <label className="form-checkbox">
-                        <input
-                          type="checkbox"
-                          checked={qualitySettings.imperfectTiming}
-                          onChange={(e) => setQualitySettings(prev => ({ ...prev, imperfectTiming: e.target.checked }))}
-                        />
-                        Realistic timing (help doesn't always arrive perfectly)
-                      </label>
-                    </div>
-                  </div>
-
-                  <div className="quality-category">
-                    <h4>👥 Character Development</h4>
-                    <div className="preferences-checkboxes">
-                      <label className="form-checkbox">
-                        <input
-                          type="checkbox"
-                          checked={qualitySettings.includeSetbacks}
-                          onChange={(e) => setQualitySettings(prev => ({ ...prev, includeSetbacks: e.target.checked }))}
-                        />
-                        Include realistic setbacks and struggles
-                      </label>
-                      
-                      <label className="form-checkbox">
-                        <input
-                          type="checkbox"
-                          checked={qualitySettings.showInternalConflict}
-                          onChange={(e) => setQualitySettings(prev => ({ ...prev, showInternalConflict: e.target.checked }))}
-                        />
-                        Show internal conflict rather than stating it
-                      </label>
-                      
-                      <label className="form-checkbox">
-                        <input
-                          type="checkbox"
-                          checked={qualitySettings.allowBacksliding}
-                          onChange={(e) => setQualitySettings(prev => ({ ...prev, allowBacksliding: e.target.checked }))}
-                        />
-                        Allow characters to backslide or doubt
-                      </label>
-                      
-                      <label className="form-checkbox">
-                        <input
-                          type="checkbox"
-                          checked={qualitySettings.varyCharacterFocus}
-                          onChange={(e) => setQualitySettings(prev => ({ ...prev, varyCharacterFocus: e.target.checked }))}
-                        />
-                        Vary character development speeds and focus
-                      </label>
-                    </div>
-                  </div>
-
-                  <div className="quality-category">
-                    <h4>💬 Dialogue & Voice</h4>
-                    <div className="preferences-checkboxes">
-                      <label className="form-checkbox">
-                        <input
-                          type="checkbox"
-                          checked={qualitySettings.uniqueVoices}
-                          onChange={(e) => setQualitySettings(prev => ({ ...prev, uniqueVoices: e.target.checked }))}
-                        />
-                        Give each character a distinctive voice
-                      </label>
-                      
-                      <label className="form-checkbox">
-                        <input
-                          type="checkbox"
-                          checked={qualitySettings.characterSpecificSpeech}
-                          onChange={(e) => setQualitySettings(prev => ({ ...prev, characterSpecificSpeech: e.target.checked }))}
-                        />
-                        Use character-specific metaphors and speech patterns
-                      </label>
-                      
-                      <label className="form-checkbox">
-                        <input
-                          type="checkbox"
-                          checked={qualitySettings.varySentenceStructure}
-                          onChange={(e) => setQualitySettings(prev => ({ ...prev, varySentenceStructure: e.target.checked }))}
-                        />
-                        Vary sentence length and structure dramatically
-                      </label>
-                      
-                      <label className="form-checkbox">
-                        <input
-                          type="checkbox"
-                          checked={qualitySettings.dramaticPacing}
-                          onChange={(e) => setQualitySettings(prev => ({ ...prev, dramaticPacing: e.target.checked }))}
-                        />
-                        Use sentence fragments and run-ons for effect
-                      </label>
-                    </div>
-                  </div>
-
-                  <div className="quality-category">
-                    <h4>🌟 Depth & Complexity</h4>
-                    <div className="preferences-checkboxes">
-                      <label className="form-checkbox">
-                        <input
-                          type="checkbox"
-                          checked={qualitySettings.enhancedSensoryDetails}
-                          onChange={(e) => setQualitySettings(prev => ({ ...prev, enhancedSensoryDetails: e.target.checked }))}
-                        />
-                        Include specific sensory details (sounds, smells, textures)
-                      </label>
-                      
-                      <label className="form-checkbox">
-                        <input
-                          type="checkbox"
-                          checked={qualitySettings.showEmotionsPhysically}
-                          onChange={(e) => setQualitySettings(prev => ({ ...prev, showEmotionsPhysically: e.target.checked }))}
-                        />
-                        Show emotions through physical sensations
-                      </label>
-                      
-                      <label className="form-checkbox">
-                        <input
-                          type="checkbox"
-                          checked={qualitySettings.includeMoralComplexity}
-                          onChange={(e) => setQualitySettings(prev => ({ ...prev, includeMoralComplexity: e.target.checked }))}
-                        />
-                        Include genuine moral ambiguity and difficult choices
-                      </label>
-                      
-                      <label className="form-checkbox">
-                        <input
-                          type="checkbox"
-                          checked={qualitySettings.competingValues}
-                          onChange={(e) => setQualitySettings(prev => ({ ...prev, competingValues: e.target.checked }))}
-                        />
-                        Show competing values and ethical dilemmas
-                      </label>
-                    </div>
-                  </div>
-
-                  <div className="quality-category">
-                    <h4>🎲 Surprises & Antagonist</h4>
-                    <div className="preferences-checkboxes">
-                      <label className="form-checkbox">
-                        <input
-                          type="checkbox"
-                          checked={qualitySettings.includeSurprises}
-                          onChange={(e) => setQualitySettings(prev => ({ ...prev, includeSurprises: e.target.checked }))}
-                        />
-                        Include genuinely surprising plot developments
-                      </label>
-                      
-                      <label className="form-checkbox">
-                        <input
-                          type="checkbox"
-                          checked={qualitySettings.organicPlotTwists}
-                          onChange={(e) => setQualitySettings(prev => ({ ...prev, organicPlotTwists: e.target.checked }))}
-                        />
-                        Add characters who don't fit allegorical framework
-                      </label>
-                      
-                      <label className="form-checkbox">
-                        <input
-                          type="checkbox"
-                          checked={qualitySettings.allowSelfDiscovery}
-                          onChange={(e) => setQualitySettings(prev => ({ ...prev, allowSelfDiscovery: e.target.checked }))}
-                        />
-                        Let characters solve problems without mentor help
-                      </label>
-                      
-                      <label className="form-checkbox">
-                        <input
-                          type="checkbox"
-                          checked={qualitySettings.complexAntagonist}
-                          onChange={(e) => setQualitySettings(prev => ({ ...prev, complexAntagonist: e.target.checked }))}
-                        />
-                        Give antagonist compelling backstory and motivations
-                      </label>
-                      
-                      <label className="form-checkbox">
-                        <input
-                          type="checkbox"
-                          checked={qualitySettings.sympatheticVillain}
-                          onChange={(e) => setQualitySettings(prev => ({ ...prev, sympatheticVillain: e.target.checked }))}
-                        />
-                        Make antagonist occasionally sympathetic despite being wrong
-                      </label>
-                    </div>
-                  </div>
-
-                  <div className="quality-category">
-                    <h4>🧠 Anti-AI Pattern Settings</h4>
-                    <p className="category-description">Advanced settings to make writing feel more human and less artificially generated</p>
-                    <div className="preferences-checkboxes">
-                      <label className="form-checkbox">
-                        <input
-                          type="checkbox"
-                          checked={qualitySettings.asymmetricalCharacterArcs}
-                          onChange={(e) => setQualitySettings(prev => ({ ...prev, asymmetricalCharacterArcs: e.target.checked }))}
-                        />
-                        Asymmetrical character development (avoid synchronized growth)
-                      </label>
-                      
-                      <label className="form-checkbox">
-                        <input
-                          type="checkbox"
-                          checked={qualitySettings.genuineCharacterConflict}
-                          onChange={(e) => setQualitySettings(prev => ({ ...prev, genuineCharacterConflict: e.target.checked }))}
-                        />
-                        Characters disagree meaningfully (not all conflicts resolve neatly)
-                      </label>
-                      
-                      <label className="form-checkbox">
-                        <input
-                          type="checkbox"
-                          checked={qualitySettings.asymmetricalThematicFocus}
-                          onChange={(e) => setQualitySettings(prev => ({ ...prev, asymmetricalThematicFocus: e.target.checked }))}
-                        />
-                        Uneven thematic attention (some themes explored more than others)
-                      </label>
-                      
-                      <label className="form-checkbox">
-                        <input
-                          type="checkbox"
-                          checked={qualitySettings.messyResolutions}
-                          onChange={(e) => setQualitySettings(prev => ({ ...prev, messyResolutions: e.target.checked }))}
-                        />
-                        Imperfect endings (some conflicts have lasting consequences)
-                      </label>
-                      
-                      <label className="form-checkbox">
-                        <input
-                          type="checkbox"
-                          checked={qualitySettings.chapterVoiceVariation}
-                          onChange={(e) => setQualitySettings(prev => ({ ...prev, chapterVoiceVariation: e.target.checked }))}
-                        />
-                        Chapter voice shifts (different writing style per chapter)
-                      </label>
-                      
-                      <label className="form-checkbox">
-                        <input
-                          type="checkbox"
-                          checked={qualitySettings.theologicalAmbiguity}
-                          onChange={(e) => setQualitySettings(prev => ({ ...prev, theologicalAmbiguity: e.target.checked }))}
-                        />
-                        Embrace spiritual uncertainty (some questions stay unanswered)
-                      </label>
-                      
-                      <label className="form-checkbox">
-                        <input
-                          type="checkbox"
-                          checked={qualitySettings.paceInconsistency}
-                          onChange={(e) => setQualitySettings(prev => ({ ...prev, paceInconsistency: e.target.checked }))}
-                        />
-                        Irregular pacing (some chapters slow, others rushed)
-                      </label>
-                      
-                      <label className="form-checkbox">
-                        <input
-                          type="checkbox"
-                          checked={qualitySettings.imperfectDialogue}
-                          onChange={(e) => setQualitySettings(prev => ({ ...prev, imperfectDialogue: e.target.checked }))}
-                        />
-                        Realistic conversation (interruptions, misunderstandings, incomplete thoughts)
-                      </label>
-                      
-                      <label className="form-checkbox">
-                        <input
-                          type="checkbox"
-                          checked={qualitySettings.humanInconsistencies}
-                          onChange={(e) => setQualitySettings(prev => ({ ...prev, humanInconsistencies: e.target.checked }))}
-                        />
-                        Character contradictions (people act inconsistently like real humans)
-                      </label>
-                      
-                      <label className="form-checkbox">
-                        <input
-                          type="checkbox"
-                          checked={qualitySettings.imperfectWisdom}
-                          onChange={(e) => setQualitySettings(prev => ({ ...prev, imperfectWisdom: e.target.checked }))}
-                        />
-                        Flawed mentor guidance (wise characters make mistakes too)
-                      </label>
-                      
-                      <label className="form-checkbox">
-                        <input
-                          type="checkbox"
-                          checked={qualitySettings.naturalLanguageFlaws}
-                          onChange={(e) => setQualitySettings(prev => ({ ...prev, naturalLanguageFlaws: e.target.checked }))}
-                        />
-                        Natural speech patterns (trailing off, imprecise language, searching for words)
-                      </label>
-                      
-                      <label className="form-checkbox">
-                        <input
-                          type="checkbox"
-                          checked={qualitySettings.inconsistentEmotions}
-                          onChange={(e) => setQualitySettings(prev => ({ ...prev, inconsistentEmotions: e.target.checked }))}
-                        />
-                        Complex emotional states (conflicting emotions, unexpected shifts)
-                      </label>
-                      
-                      <label className="form-checkbox">
-                        <input
-                          type="checkbox"
-                          checked={qualitySettings.narrativeAsymmetry}
-                          onChange={(e) => setQualitySettings(prev => ({ ...prev, narrativeAsymmetry: e.target.checked }))}
-                        />
-                        Irregular story structure (chapters vary dramatically in length and importance)
-                      </label>
-                      
-                      <label className="form-checkbox">
-                        <input
-                          type="checkbox"
-                          checked={qualitySettings.authenticImperfection}
-                          onChange={(e) => setQualitySettings(prev => ({ ...prev, authenticImperfection: e.target.checked }))}
-                        />
-                        Embrace flaws (awkward moments, imperfect prose, rough edges)
-                      </label>
-                      
-                      <label className="form-checkbox">
-                        <input
-                          type="checkbox"
-                          checked={qualitySettings.randomMoments}
-                          onChange={(e) => setQualitySettings(prev => ({ ...prev, randomMoments: e.target.checked }))}
-                        />
-                        Organic details (small moments that don't advance plot but feel human)
-                      </label>
-                    </div>
-                  </div>
-                </div>
-
-                <div className="quality-presets">
-                  <h4>Quick Presets:</h4>
-                  <div className="preset-buttons">
-                    <button 
-                      className="btn btn-small" 
-                      onClick={() => setQualitySettings(Object.fromEntries(Object.keys(qualitySettings).map(key => [key, true])))}
-                    >
-                      ✨ Enable All
-                    </button>
-                    <button 
-                      className="btn btn-small" 
-                      onClick={() => setQualitySettings(Object.fromEntries(Object.keys(qualitySettings).map(key => [key, false])))}
-                    >
-                      📝 Disable All (Classic AI)
-                    </button>
-                    <button 
-                      className="btn btn-small" 
-                      onClick={() => {
-                        const essentialSettings = {
-                          varyTheologicalExplanations: true,
-                          showDontTellTheology: true,
-                          includeSetbacks: true,
-                          uniqueVoices: true,
-                          enhancedSensoryDetails: true,
-                          varySentenceStructure: true
-                        };
-                        // Set all others to false
-                        const allSettings = Object.fromEntries(
-                          Object.keys(qualitySettings).map(key => [
-                            key, 
-                            essentialSettings.hasOwnProperty(key) ? essentialSettings[key] : false
-                          ])
-                        );
-                        setQualitySettings(allSettings);
-                      }}
-                    >
-                      🎯 Essential Only
-                    </button>
-                    <button 
-                      className="btn btn-small" 
-                      onClick={() => {
-                        const humanLikeSettings = {
-                          asymmetricalCharacterArcs: true,
-                          genuineCharacterConflict: true,
-                          asymmetricalThematicFocus: true,
-                          messyResolutions: true,
-                          chapterVoiceVariation: true,
-                          theologicalAmbiguity: true,
-                          paceInconsistency: true,
-                          imperfectDialogue: true,
-                          humanInconsistencies: true,
-                          imperfectWisdom: true,
-                          naturalLanguageFlaws: true,
-                          inconsistentEmotions: true,
-                          narrativeAsymmetry: true,
-                          authenticImperfection: true,
-                          randomMoments: true
-                        };
-                        // Set all others to false
-                        const allSettings = Object.fromEntries(
-                          Object.keys(qualitySettings).map(key => [
-                            key, 
-                            humanLikeSettings.hasOwnProperty(key) ? humanLikeSettings[key] : false
-                          ])
-                        );
-                        setQualitySettings(allSettings);
-                      }}
-                    >
-                      🧠 Anti-AI Patterns Only
-                    </button>
-                    <button 
-                      className="btn btn-small" 
-                      onClick={() => {
-                        const balancedSettings = {
-                          // Core quality settings
-                          varyTheologicalExplanations: true,
-                          showDontTellTheology: true,
-                          includeSetbacks: true,
-                          uniqueVoices: true,
-                          enhancedSensoryDetails: true,
-                          varySentenceStructure: true,
-                          // Key anti-AI pattern settings
-                          asymmetricalCharacterArcs: true,
-                          genuineCharacterConflict: true,
-                          messyResolutions: true,
-                          chapterVoiceVariation: true,
-                          imperfectDialogue: true,
-                          humanInconsistencies: true
-                        };
-                        // Set all others to false
-                        const allSettings = Object.fromEntries(
-                          Object.keys(qualitySettings).map(key => [
-                            key, 
-                            balancedSettings.hasOwnProperty(key) ? balancedSettings[key] : false
-                          ])
-                        );
-                        setQualitySettings(allSettings);
-                      }}
-                    >
-                      ⚖️ Balanced Human-Like
-                    </button>
-                  </div>
-                </div>
-              </div>
-
               <div className="generation-actions">
-                {completedChapters.length > 0 && !isGenerating && (
-                  <div className="recovery-info">
-                    <div className="recovery-banner">
-                      📚 Found {completedChapters.length} completed chapters from previous session
-                    </div>
-                    <div className="recovery-actions">
-                      <button 
-                        className="btn btn-success btn-large"
-                        onClick={() => startStreamingGeneration(conflictData || {
-                          title: storySetup.title,
-                          genre: `${storySetup.genre}_${storySetup.subgenre}`,
-                          synopsis: storySetup.synopsis
-                        }, completedChapters.length)}
-                      >
-                        🔄 Resume from Chapter {completedChapters.length + 1}
-                      </button>
-                      <button 
-                        className="btn btn-outline"
-                        onClick={() => setCompletedChapters([])}
-                      >
-                        🗑️ Clear & Start Fresh
-                      </button>
-                    </div>
-                    <div className="completed-chapters-list">
-                      <h4>Completed Chapters:</h4>
-                      <div className="chapters-preview">
-                        {completedChapters.map((chapter, index) => (
-                          <div key={index} className="chapter-preview-item">
-                            <span className="chapter-number">Ch. {chapter.number}</span>
-                            <span className="chapter-title">{chapter.title}</span>
-                            <span className="chapter-words">{chapter.wordCount || 'N/A'} words</span>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  </div>
-                )}
-                
                 <button 
                   className="btn btn-primary btn-large"
                   onClick={startGeneration}
-                  disabled={completedChapters.length > 0}
                 >
-                  {completedChapters.length > 0 ? '🔄 Use Resume Button Above' : '🚀 Start Auto-Generation'}
+                  🚀 Start Auto-Generation
                 </button>
                 
                 <div className="auto-generation-info">
@@ -2972,7 +1821,6 @@ const AutoGenerate = ({ conflictData, apiConfig, onSuccess, onError, onNotificat
                     <li>Each chapter builds on the previous ones</li>
                     <li>Real-time progress tracking and logs</li>
                     <li>Can be paused or cancelled at any time</li>
-                    <li>🔄 Automatically resumes from last completed chapter if interrupted</li>
                     <li>Estimated time: 10-30 minutes for full novel</li>
                   </ul>
                 </div>
@@ -2984,21 +1832,12 @@ const AutoGenerate = ({ conflictData, apiConfig, onSuccess, onError, onNotificat
             <div className="generation-progress">
               <div className="progress-header">
                 <h3>🤖 Intelligently Generating Your Novel</h3>
-                <div className="cancel-buttons">
-                  <button 
-                    className="btn btn-error"
-                    onClick={cancelGeneration}
-                  >
-                    ❌ Cancel Generation
-                  </button>
-                  <button 
-                    className="btn btn-error btn-small"
-                    onClick={forceStopGeneration}
-                    title="Force stop all generation processes"
-                  >
-                    🛑 Force Stop
-                  </button>
-                </div>
+                <button 
+                  className="btn btn-error"
+                  onClick={cancelGeneration}
+                >
+                  ❌ Cancel Generation
+                </button>
               </div>
 
               {currentProcess && (
@@ -3017,16 +1856,10 @@ const AutoGenerate = ({ conflictData, apiConfig, onSuccess, onError, onNotificat
                     style={{ width: `${progress}%` }}
                   ></div>
                 </div>
-                <div className={`progress-text ${completedChapters.length > 0 ? 'recovery' : ''}`}>
+                <div className="progress-text">
                   {progress.toFixed(1)}% Complete
-                  {completedChapters.length > 0 && (
-                    <span> - Resumed from Chapter {completedChapters.length + 1}</span>
-                  )}
                   {status?.currentChapter && (
                     <span> - Chapter {status.currentChapter} of {calculatedChapters || (conflictData?.chapters || storySetup.chapters)}</span>
-                  )}
-                  {completedChapters.length > 0 && result?.chapters && (
-                    <span> - Total: {result.chapters.length} chapters completed</span>
                   )}
                 </div>
               </div>
