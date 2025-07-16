@@ -130,7 +130,49 @@ const AutoGenerate = ({ conflictData, apiConfig, onSuccess, onError, onNotificat
     // Human-like Inconsistencies
     characterMoodVariation: true, // Characters act differently in different moods/contexts
     writerForgetsMinorDetails: true, // Small inconsistencies that feel human
-    naturalDigressions: true // Allow story to wander slightly from main plot
+    naturalDigressions: true, // Allow story to wander slightly from main plot
+    
+    // ITERATION 3 CRITIQUE RESPONSES - Breaking AI Patterns Identified in Analysis
+    
+    // Grounded Character Motivation
+    concreteEmotionalStakes: true, // Characters need tangible, relatable motivations beyond abstract concepts
+    personalDrivingForces: true, // Give characters specific goals that drive plot (missing family, career ambitions, etc.)
+    characterSpecificBackgrounds: true, // Root character traits in their professions, experiences, and personal history
+    
+    // Breaking Episodic Structure
+    breakTheFormula: true, // Avoid predictable Travel->Arrive->Learn->Trial->Reflect pattern
+    overlappingChallenges: true, // Don't let characters fully process one challenge before the next begins
+    interruptedReflection: true, // Let trials interrupt moments of contemplation for more realistic pacing
+    onTheRoadLearning: true, // Some lessons learned during travel, not just at destinations
+    combineRedundantChapters: true, // Merge reflection chapters with action chapters to maintain momentum
+    
+    // Deepening Conflict and Stakes
+    tangibleAntagonistGoals: true, // Villains need concrete, achievable objectives beyond abstract philosophies
+    realWorldConsequences: true, // Show physical/emotional impact of conflicts, not just intellectual debates
+    heroesCanFail: true, // Allow protagonists to make wrong choices and face real consequences
+    misinterpretedGuidance: true, // Characters sometimes misunderstand advice and make mistakes
+    backfiredSolutions: true, // Well-intentioned actions sometimes make situations worse
+    
+    // Prose Refinement - Eliminating AI-isms
+    avoidCommonAIMetaphors: true, // Replace "tapestry of," "symphony of," "mosaic of," "testament to"
+    uniqueSensoryDescriptions: true, // Use specific, unusual sensory details instead of generic metaphors
+    embraceImperfection: true, // Use sentence fragments, run-ons, interruptions, trailing dialogue
+    grammaticalVariation: true, // Mix perfect grammar with realistic speech patterns and incomplete thoughts
+    organicLanguageFlow: true, // Let characters speak with natural hesitations, repetitions, and verbal tics
+    
+    // Character Agency and Independence
+    protagonistDrivenDiscovery: true, // Main characters reach conclusions through observation and deduction
+    reduceMentorPresence: true, // Wise characters provide less direct guidance, more indirect hints
+    charactersSolveProblems: true, // Protagonists find solutions using their own skills and knowledge
+    internalWisdomGrowth: true, // Characters develop understanding from within rather than external teaching
+    allowWrongConclusions: true, // Characters sometimes misinterpret situations and learn from mistakes
+    
+    // Natural Dialogue Improvements  
+    colloquialSpeech: true, // Characters use region-appropriate slang, contractions, informal language
+    incompleteThoughts: true, // Dialogue includes half-finished sentences, interruptions, overlapping speech
+    characterSpecificVocabulary: true, // Each character has unique word choices based on background/education
+    conversationalMomentum: true, // Dialogue flows with natural rhythm, not perfect turn-taking
+    unequivalentResponses: true, // Characters don't always directly answer questions or address points made
   });
 
   // Comprehensive genre mapping system for LLM instructions
@@ -1760,6 +1802,120 @@ const AutoGenerate = ({ conflictData, apiConfig, onSuccess, onError, onNotificat
     
     if (qualitySettings.randomMoments) {
       instructions.push("ORGANIC DETAILS: Include small, seemingly insignificant moments that don't advance the plot - characters noticing random details, having brief interactions that don't lead anywhere, or experiencing minor events that feel human but aren't symbolically important.");
+    }
+    
+    // ITERATION 3 CRITIQUE RESPONSES - Advanced Human-Like Writing
+    
+    if (qualitySettings.concreteEmotionalStakes) {
+      instructions.push("GROUNDED MOTIVATION: Give characters tangible, relatable motivations that drive the plot - missing family members, career ambitions, financial struggles, health concerns. Avoid abstract concepts as primary drivers; root character goals in concrete, emotional stakes that readers can immediately understand.");
+    }
+    
+    if (qualitySettings.personalDrivingForces) {
+      instructions.push("SPECIFIC CHARACTER GOALS: Each character needs a clear, personal objective that creates urgency and forward momentum. A detective seeking justice for their partner's death, an artist trying to save their studio, a parent protecting their child - make goals specific and emotionally resonant.");
+    }
+    
+    if (qualitySettings.characterSpecificBackgrounds) {
+      instructions.push("PROFESSION-ROOTED TRAITS: Characters' occupations, experiences, and personal histories should deeply influence how they speak, think, and problem-solve. A chef notices flavors and textures, a mechanic sees how things are broken or functioning, a teacher naturally explains concepts to others.");
+    }
+    
+    if (qualitySettings.breakTheFormula) {
+      instructions.push("BREAK EPISODIC PATTERNS: Avoid predictable chapter structures like Travel→Arrive→Learn→Trial→Reflect→Move On. Mix up the order, combine elements, skip steps entirely, or reverse the sequence. Let some challenges begin during travel, some lessons emerge during trials, some reflection happen while moving.");
+    }
+    
+    if (qualitySettings.overlappingChallenges) {
+      instructions.push("LAYERED CONFLICTS: Don't resolve one problem completely before introducing the next. Characters should face multiple, simultaneous challenges that complicate each other. While dealing with external threats, they're also wrestling with internal doubts, relationship tensions, and resource limitations.");
+    }
+    
+    if (qualitySettings.interruptedReflection) {
+      instructions.push("DISRUPTED CONTEMPLATION: When characters are processing events or having meaningful conversations, interrupt them with urgent action, new arrivals, environmental hazards, or pressing deadlines. Real life doesn't pause for perfect moments of reflection.");
+    }
+    
+    if (qualitySettings.onTheRoadLearning) {
+      instructions.push("MOBILE DISCOVERY: Characters should gain insights and solve problems while traveling, working, or in the middle of other activities. Not all important realizations happen during formal conversations or designated learning moments - wisdom emerges during mundane activities.");
+    }
+    
+    if (qualitySettings.combineRedundantChapters) {
+      instructions.push("MERGE REFLECTION WITH ACTION: Instead of separate chapters for processing events, weave contemplation into active scenes. Characters reflect while fighting, traveling, working, or dealing with immediate challenges. Maintain narrative momentum by avoiding pure exposition chapters.");
+    }
+    
+    if (qualitySettings.tangibleAntagonistGoals) {
+      instructions.push("CONCRETE VILLAIN OBJECTIVES: Antagonists need specific, achievable goals beyond abstract philosophies. Instead of 'wanting to corrupt the world,' give them concrete aims: seizing a specific territory, gaining control of resources, eliminating particular rivals, or achieving personal revenge. Show how their success would tangibly harm the protagonists.");
+    }
+    
+    if (qualitySettings.realWorldConsequences) {
+      instructions.push("PHYSICAL AND EMOTIONAL IMPACT: Conflicts should have visible, lasting effects on characters and their environment. Injuries that slow characters down, damaged relationships that affect cooperation, destroyed resources that limit options, traumatic experiences that change behavior patterns.");
+    }
+    
+    if (qualitySettings.heroesCanFail) {
+      instructions.push("MEANINGFUL PROTAGONIST FAILURES: Allow main characters to make genuinely wrong choices that create serious problems. Let their good intentions backfire, their assumptions prove incorrect, their skills prove inadequate. These failures should have consequences that affect the plot and force character growth.");
+    }
+    
+    if (qualitySettings.misinterpretedGuidance) {
+      instructions.push("CONFUSED INTERPRETATION: When characters receive advice, guidance, or information, let them sometimes misunderstand the meaning or apply it incorrectly. This creates authentic learning experiences and shows that wisdom isn't always easily transferred from one person to another.");
+    }
+    
+    if (qualitySettings.backfiredSolutions) {
+      instructions.push("UNINTENDED CONSEQUENCES: Well-intentioned actions should sometimes make situations worse. Attempts to help someone might offend them, efforts to solve one problem might create two new ones, strategies that worked before might fail in new circumstances.");
+    }
+    
+    if (qualitySettings.avoidCommonAIMetaphors) {
+      instructions.push("AVOID CLICHÉD METAPHORS: Replace overused phrases like 'tapestry of,' 'symphony of,' 'mosaic of,' 'testament to,' 'kaleidoscope of,' 'labyrinth of,' and 'nexus of.' Use specific, concrete imagery instead. Instead of 'symphony of sounds,' describe the actual sounds: 'car horns blaring over the hiss of bus brakes and the clatter of high heels on wet pavement.'");
+    }
+    
+    if (qualitySettings.uniqueSensoryDescriptions) {
+      instructions.push("SPECIFIC SENSORY DETAILS: Use unusual, specific sensory descriptions rather than generic ones. Instead of 'sweet smell,' try 'the metallic sweetness of artificial cherry.' Instead of 'loud noise,' try 'a sound like someone dropping a toolbox down concrete stairs.' Make readers experience the scene through unique sensory combinations.");
+    }
+    
+    if (qualitySettings.embraceImperfection) {
+      instructions.push("EMBRACE LINGUISTIC IMPERFECTION: Use sentence fragments for emphasis. Let characters trail off mid-sentence with em-dashes. Include interruptions, overlapping dialogue, incomplete thoughts. Mix grammatically perfect sentences with natural speech patterns that include hesitations, repetitions, and verbal stumbles.");
+    }
+    
+    if (qualitySettings.grammaticalVariation) {
+      instructions.push("VARIED GRAMMAR PATTERNS: Don't maintain perfect grammar throughout. Include run-on sentences that capture excited or anxious thoughts, sentence fragments that create impact, dangling modifiers that reflect how people actually speak and think. Balance clarity with authenticity.");
+    }
+    
+    if (qualitySettings.organicLanguageFlow) {
+      instructions.push("NATURAL SPEECH RHYTHMS: Characters should speak with realistic hesitations ('I mean, uh, what I'm trying to say is...'), verbal tics ('you know,' 'like,' 'actually'), false starts ('The thing is—no, wait, let me think'), and natural repetitions that reflect how people actually communicate.");
+    }
+    
+    if (qualitySettings.protagonistDrivenDiscovery) {
+      instructions.push("CHARACTER-LED INSIGHT: Let protagonists reach important conclusions through their own observation, deduction, and experience rather than being told by mentors or wise characters. Show them noticing patterns, making connections, and developing understanding independently.");
+    }
+    
+    if (qualitySettings.reduceMentorPresence) {
+      instructions.push("LIMITED MENTOR GUIDANCE: Wise characters should provide minimal, indirect assistance. Instead of explaining solutions, they might ask probing questions, share seemingly unrelated stories, or simply be absent when protagonists face crucial decisions. This forces characters to rely on their own judgment.");
+    }
+    
+    if (qualitySettings.charactersSolveProblems) {
+      instructions.push("INDEPENDENT PROBLEM-SOLVING: Protagonists should use their established skills, knowledge, and personality traits to overcome obstacles. A craftsperson should solve problems through making or fixing things, a scholar through research and analysis, a leader through organizing people.");
+    }
+    
+    if (qualitySettings.internalWisdomGrowth) {
+      instructions.push("SELF-DEVELOPED UNDERSTANDING: Characters should develop wisdom through internal reflection, trial and error, and personal experience rather than external teaching. Show them wrestling with concepts, testing ideas, and gradually building understanding from within.");
+    }
+    
+    if (qualitySettings.allowWrongConclusions) {
+      instructions.push("MISINTERPRETATION AND CORRECTION: Characters should sometimes reach incorrect conclusions about events, people, or situations. Let them act on these misunderstandings and discover their mistakes through experience rather than immediate correction from others.");
+    }
+    
+    if (qualitySettings.colloquialSpeech) {
+      instructions.push("REGIONAL AND SOCIAL SPEECH PATTERNS: Characters should use appropriate slang, contractions, and informal language based on their background, education, and social context. A street-smart teenager speaks differently than a university professor, who speaks differently than a rural farmer.");
+    }
+    
+    if (qualitySettings.incompleteThoughts) {
+      instructions.push("FRAGMENTED DIALOGUE: Include half-finished sentences, interruptions, overlapping speech, and thoughts that trail off. 'I was thinking maybe we could—' 'Oh, that reminds me!' 'What I meant was... never mind, it's complicated.' Show how real conversations actually unfold.");
+    }
+    
+    if (qualitySettings.characterSpecificVocabulary) {
+      instructions.push("UNIQUE WORD CHOICES: Each character should have a distinct vocabulary reflecting their education, interests, and personality. A medical professional uses precise terminology, an artist describes things in visual terms, a musician hears rhythm and melody in everything.");
+    }
+    
+    if (qualitySettings.conversationalMomentum) {
+      instructions.push("NATURAL CONVERSATION FLOW: Dialogue should flow with realistic rhythm rather than perfect turn-taking. Include overlapping speech, quick exchanges, long pauses, subject changes, and the natural ebb and flow of real conversation where not every comment gets a direct response.");
+    }
+    
+    if (qualitySettings.unequivalentResponses) {
+      instructions.push("INDIRECT RESPONSES: Characters don't always directly answer questions or address points made by others. They might deflect, change subjects, answer different questions, or respond to subtext rather than stated words. This creates more realistic, complex dialogue patterns.");
     }
     
     return instructions.length > 0 ? 
