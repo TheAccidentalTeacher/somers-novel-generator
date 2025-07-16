@@ -603,9 +603,23 @@ const AutoGenerate = ({ conflictData, apiConfig, onSuccess, onError, onNotificat
         addLog(`❌ Live stream failed at Chapter ${currentProgress + 1} - switching to batch recovery mode`, 'warning');
         eventSource.close();
         
+        // Preserve streaming chapters in completedChapters state before switching to batch
+        setCompletedChapters(prevCompleted => {
+          const updated = [...prevCompleted];
+          chapters.forEach(chapter => {
+            const existingIndex = updated.findIndex(ch => ch.number === chapter.number);
+            if (existingIndex >= 0) {
+              updated[existingIndex] = chapter;
+            } else {
+              updated.push(chapter);
+            }
+          });
+          return updated.sort((a, b) => a.number - b.number);
+        });
+        
         // Fallback to batch generation with recovery
         addLog(`🔄 Resuming with batch generation from Chapter ${currentProgress + 1}...`, 'info');
-        startBatchGenerationWithRecovery(storyData, currentProgress).catch(fallbackError => {
+        startBatchGenerationWithRecovery(storyData, currentProgress, chapters).catch(fallbackError => {
           console.error('Fallback generation error:', fallbackError);
           throw fallbackError;
         });
@@ -620,7 +634,22 @@ const AutoGenerate = ({ conflictData, apiConfig, onSuccess, onError, onNotificat
           console.log(`⏰ Stream timeout at Chapter ${currentProgress + 1} - switching to batch recovery`);
           addLog(`⏰ Stream timeout - resuming with batch mode from Chapter ${currentProgress + 1}`, 'warning');
           eventSource.close();
-          startBatchGenerationWithRecovery(storyData, currentProgress).catch(fallbackError => {
+          
+          // Preserve streaming chapters before switching to batch
+          setCompletedChapters(prevCompleted => {
+            const updated = [...prevCompleted];
+            chapters.forEach(chapter => {
+              const existingIndex = updated.findIndex(ch => ch.number === chapter.number);
+              if (existingIndex >= 0) {
+                updated[existingIndex] = chapter;
+              } else {
+                updated.push(chapter);
+              }
+            });
+            return updated.sort((a, b) => a.number - b.number);
+          });
+          
+          startBatchGenerationWithRecovery(storyData, currentProgress, chapters).catch(fallbackError => {
             console.error('Timeout fallback generation error:', fallbackError);
             throw fallbackError;
           });
@@ -707,7 +736,7 @@ const AutoGenerate = ({ conflictData, apiConfig, onSuccess, onError, onNotificat
         const currentProgress = chapters.length;
         addLog(`🔄 Attempting to recover from Chapter ${currentProgress + 1}...`, 'info');
         setTimeout(() => {
-          startBatchGenerationWithRecovery(storyData, currentProgress);
+          startBatchGenerationWithRecovery(storyData, currentProgress, chapters);
         }, 2000);
         break;
         
@@ -723,7 +752,7 @@ const AutoGenerate = ({ conflictData, apiConfig, onSuccess, onError, onNotificat
         // Attempt recovery instead of failing
         const errorProgress = chapters.length;
         addLog(`🔄 Attempting recovery from Chapter ${errorProgress + 1}...`, 'info');
-        startBatchGenerationWithRecovery(storyData, errorProgress);
+        startBatchGenerationWithRecovery(storyData, errorProgress, chapters);
         break;
         
       default:
@@ -732,7 +761,7 @@ const AutoGenerate = ({ conflictData, apiConfig, onSuccess, onError, onNotificat
   };
 
   // Enhanced batch generation with recovery support
-  const startBatchGenerationWithRecovery = async (storyData, startFromChapter = 0) => {
+  const startBatchGenerationWithRecovery = async (storyData, startFromChapter = 0, existingChapters = []) => {
     try {
       // Use existing outline that was already created
       if (!outline || outline.length === 0) {
@@ -752,8 +781,8 @@ const AutoGenerate = ({ conflictData, apiConfig, onSuccess, onError, onNotificat
       const initialProgress = 20 + (startFromChapter / totalChapters * 70);
       setProgress(initialProgress);
       
-      // Start with existing completed chapters
-      const chapters = [...completedChapters];
+      // Start with existing chapters (from streaming or previous batch)
+      const chapters = [...existingChapters];
       
       addLog(`📚 Generating remaining chapters (${startFromChapter + 1} to ${totalChapters})...`, 'info');
       
@@ -873,7 +902,7 @@ const AutoGenerate = ({ conflictData, apiConfig, onSuccess, onError, onNotificat
 
   // Legacy batch generation (now calls recovery version)
   const startBatchGeneration = async (storyData) => {
-    return startBatchGenerationWithRecovery(storyData, 0);
+    return startBatchGenerationWithRecovery(storyData, 0, []);
   };
 
   const createOutline = async () => {
