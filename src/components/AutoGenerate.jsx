@@ -1544,11 +1544,11 @@ const AutoGenerate = ({ conflictData, apiConfig, onSuccess, onError, onNotificat
         ],
       });
 
-      // Generate and download the document
-      const buffer = await Packer.toBuffer(doc);
+      // Generate and download the document using browser-compatible method
+      const blob = await Packer.toBlob(doc);
       const filename = `${title.replace(/[^a-z0-9]/gi, '_').toLowerCase()}_novel.docx`;
       
-      saveAs(new Blob([buffer]), filename);
+      saveAs(blob, filename);
       
       addLog(`✅ Novel downloaded as ${filename}`, 'success');
       onNotification('Novel downloaded successfully!', 'success');
