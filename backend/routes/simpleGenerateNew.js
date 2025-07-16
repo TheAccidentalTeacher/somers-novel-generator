@@ -374,6 +374,142 @@ async function generateChaptersStream(streamId, streamData, res) {
   }
 }
 
+// Progress-based batch generation with job status
+const activeJobs = new Map(); // Store active generation jobs
+
+router.post('/batch-with-progress', async (req, res) => {
+  try {
+    const { title, synopsis, genre, outline, qualitySettings, startFromChapter = 0 } = req.body;
+    
+    if (!title || !synopsis || !outline) {
+      return res.status(400).json({
+        success: false,
+        error: 'Title, synopsis, and outline are required'
+      });
+    }
+    
+    // Create job ID
+    const jobId = `job_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+    
+    // Initialize job status
+    activeJobs.set(jobId, {
+      status: 'starting',
+      currentChapter: 0,
+      totalChapters: outline.length,
+      chapters: [],
+      startedAt: new Date(),
+      lastUpdate: new Date()
+    });
+    
+    // Start generation in background
+    generateNovelBatch(jobId, { title, synopsis, genre, outline, qualitySettings, startFromChapter })
+      .catch(error => {
+        const job = activeJobs.get(jobId);
+        if (job) {
+          job.status = 'error';
+          job.error = error.message;
+          job.lastUpdate = new Date();
+        }
+      });
+    
+    res.json({
+      success: true,
+      jobId,
+      message: 'Generation started'
+    });
+    
+  } catch (error) {
+    console.error('Batch generation error:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message
+    });
+  }
+});
+
+// Get job status
+router.get('/job-status/:jobId', (req, res) => {
+  const { jobId } = req.params;
+  const job = activeJobs.get(jobId);
+  
+  if (!job) {
+    return res.status(404).json({
+      success: false,
+      error: 'Job not found'
+    });
+  }
+  
+  res.json({
+    success: true,
+    ...job
+  });
+});
+
+// Background generation function
+async function generateNovelBatch(jobId, { title, synopsis, genre, outline, qualitySettings, startFromChapter }) {
+  const job = activeJobs.get(jobId);
+  if (!job) return;
+  
+  try {
+    job.status = 'generating';
+    job.lastUpdate = new Date();
+    
+    const chapters = [];
+    
+    for (let i = startFromChapter; i < outline.length; i++) {
+      const chapterOutline = outline[i];
+      
+      job.currentChapter = i + 1;
+      job.status = `Generating Chapter ${i + 1}: ${chapterOutline.title}`;
+      job.lastUpdate = new Date();
+      
+      // Generate chapter using existing logic
+      const chapterResult = await generator.generateChapter(chapterOutline, {
+        previousChapters: chapters,
+        fullPremise: synopsis,
+        genre: genre || 'fantasy',
+        qualitySettings
+      });
+      
+      if (chapterResult.success) {
+        chapters.push({
+          ...chapterResult.chapter,
+          number: i + 1,
+          title: chapterResult.chapter.title || `Chapter ${i + 1}`
+        });
+      } else {
+        throw new Error(`Chapter ${i + 1} generation failed: ${chapterResult.error}`);
+      }
+      
+      job.chapters = [...chapters];
+      job.lastUpdate = new Date();
+    }
+    
+    // Complete
+    job.status = 'completed';
+    job.result = {
+      title,
+      synopsis,
+      chapters,
+      stats: {
+        totalWords: chapters.reduce((sum, ch) => sum + (ch.wordCount || 0), 0),
+        chapterCount: chapters.length
+      }
+    };
+    job.lastUpdate = new Date();
+    
+    // Clean up after 1 hour
+    setTimeout(() => {
+      activeJobs.delete(jobId);
+    }, 3600000);
+    
+  } catch (error) {
+    job.status = 'error';
+    job.error = error.message;
+    job.lastUpdate = new Date();
+  }
+}
+
 // Test endpoint: Check OpenAI connection
 router.get('/test-openai', async (req, res) => {
   try {

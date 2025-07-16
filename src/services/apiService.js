@@ -362,6 +362,69 @@ class APIService {
     
     return eventSource;
   }
+
+  // NEW: Batch generation with progress polling (much more reliable)
+  async generateNovelWithProgress(novelData, onProgress = null) {
+    console.log(`🚀 Starting batch novel generation with progress updates...`);
+    
+    // Start the batch job
+    const response = await this.makeRequest('/simple-generate-new/batch-with-progress', {
+      method: 'POST',
+      body: JSON.stringify(novelData),
+      timeout: 30000 // 30 seconds to start the job
+    });
+    
+    if (!response.success || !response.jobId) {
+      throw new Error(response.error || 'Failed to start batch generation');
+    }
+    
+    const jobId = response.jobId;
+    console.log(`📋 Job started: ${jobId}`);
+    
+    // Poll for progress every 10 seconds
+    return new Promise((resolve, reject) => {
+      const pollInterval = setInterval(async () => {
+        try {
+          const statusResponse = await this.makeRequest(`/simple-generate-new/job-status/${jobId}`, {
+            method: 'GET',
+            timeout: 15000
+          });
+          
+          if (statusResponse.status === 'completed') {
+            clearInterval(pollInterval);
+            console.log(`✅ Batch generation completed`);
+            resolve(statusResponse.result);
+          } else if (statusResponse.status === 'error') {
+            clearInterval(pollInterval);
+            const error = new Error(statusResponse.error || 'Generation failed');
+            if (statusResponse.chapters && statusResponse.chapters.length > 0) {
+              error.novel = { chapters: statusResponse.chapters };
+            }
+            reject(error);
+          } else {
+            // Call progress callback if provided
+            if (onProgress) {
+              onProgress({
+                currentChapter: statusResponse.currentChapter,
+                totalChapters: statusResponse.totalChapters,
+                status: statusResponse.status
+              });
+            }
+            console.log(`📊 ${statusResponse.status} (${statusResponse.currentChapter}/${statusResponse.totalChapters})`);
+          }
+        } catch (error) {
+          console.error('❌ Polling error:', error);
+          // Don't fail on single polling errors, just continue
+        }
+      }, 10000); // Poll every 10 seconds
+      
+      // Timeout after 30 minutes
+      setTimeout(() => {
+        clearInterval(pollInterval);
+        reject(new Error('Generation timed out after 30 minutes'));
+      }, 30 * 60 * 1000);
+    });
+  }
 }
 
 // =====================================================================
@@ -443,3 +506,4 @@ const apiService = new APIService();
 
 export default apiService;
 export { APIError };
+export const generateNovelWithProgress = apiService.generateNovelWithProgress.bind(apiService);
