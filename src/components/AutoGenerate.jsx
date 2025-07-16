@@ -294,7 +294,7 @@ const AutoGenerate = ({ conflictData, apiConfig, onSuccess, onError, onNotificat
       minWords: 1000,
       maxWords: 2000,
       suggestedChapterLength: 500,
-      chapters: 2-4
+      chapters: 4 // Fixed: was 2-4
     },
     short: {
       name: 'Short Story',
@@ -304,7 +304,7 @@ const AutoGenerate = ({ conflictData, apiConfig, onSuccess, onError, onNotificat
       minWords: 2000,
       maxWords: 7000,
       suggestedChapterLength: 1000,
-      chapters: 2-7
+      chapters: 7 // Fixed: was 2-7
     },
     novelette: {
       name: 'Novelette',
@@ -314,7 +314,7 @@ const AutoGenerate = ({ conflictData, apiConfig, onSuccess, onError, onNotificat
       minWords: 7001,
       maxWords: 17500,
       suggestedChapterLength: 1500,
-      chapters: 5-12
+      chapters: 12 // Fixed: was 5-12
     },
     novella: {
       name: 'Novella',
@@ -324,7 +324,7 @@ const AutoGenerate = ({ conflictData, apiConfig, onSuccess, onError, onNotificat
       minWords: 17501,
       maxWords: 50000,
       suggestedChapterLength: 2000,
-      chapters: 9-25
+      chapters: 25 // Fixed: was 9-25
     },
     novel: {
       name: 'Novel',
@@ -334,7 +334,7 @@ const AutoGenerate = ({ conflictData, apiConfig, onSuccess, onError, onNotificat
       minWords: 50001,
       maxWords: 110000,
       suggestedChapterLength: 2500,
-      chapters: 20-44
+      chapters: 44 // Fixed: was 20-44
     },
     epic: {
       name: 'Epic Novel',
@@ -344,7 +344,7 @@ const AutoGenerate = ({ conflictData, apiConfig, onSuccess, onError, onNotificat
       minWords: 110001,
       maxWords: 200000,
       suggestedChapterLength: 3000,
-      chapters: 37-67
+      chapters: 67 // Fixed: was 37-67
     }
   };
 
@@ -1241,6 +1241,25 @@ const AutoGenerate = ({ conflictData, apiConfig, onSuccess, onError, onNotificat
     }
   };
 
+  const forceStopGeneration = () => {
+    // Force stop all generation processes
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort();
+    }
+    
+    if (intervalRef.current) {
+      clearInterval(intervalRef.current);
+    }
+    
+    setIsGenerating(false);
+    setIsCreatingOutline(false);
+    setJobId(null);
+    setCurrentProcess('');
+    setGenerationPhase('setup');
+    addLog('🛑 Generation forcefully stopped by user', 'warning');
+    onNotification('Generation stopped', 'warning');
+  };
+
   if (result) {
     return (
       <div className="auto-generate results">
@@ -1793,12 +1812,21 @@ const AutoGenerate = ({ conflictData, apiConfig, onSuccess, onError, onNotificat
             <div className="generation-progress">
               <div className="progress-header">
                 <h3>🤖 Intelligently Generating Your Novel</h3>
-                <button 
-                  className="btn btn-error"
-                  onClick={cancelGeneration}
-                >
-                  ❌ Cancel Generation
-                </button>
+                <div className="cancel-buttons">
+                  <button 
+                    className="btn btn-error"
+                    onClick={cancelGeneration}
+                  >
+                    ❌ Cancel Generation
+                  </button>
+                  <button 
+                    className="btn btn-error btn-small"
+                    onClick={forceStopGeneration}
+                    title="Force stop all generation processes"
+                  >
+                    🛑 Force Stop
+                  </button>
+                </div>
               </div>
 
               {currentProcess && (
