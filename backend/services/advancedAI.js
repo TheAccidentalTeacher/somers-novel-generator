@@ -48,10 +48,21 @@ REQUIREMENTS:
 1. Create exactly ${chapters} chapter outlines
 2. Each chapter should be substantial enough for ${targetChapterLength} words
 3. Ensure proper story pacing and structure for ${fictionLength}
-4. Include character development arcs
-5. Build tension and conflicts appropriately
+4. Include character development arcs WITH SETBACKS AND REGRESSION
+5. Build tension and conflicts appropriately - let conflicts LINGER across chapters
 6. Follow genre conventions for ${genre}
 7. Each chapter should have clear objectives and emotional beats
+8. AVOID AI TELLTALES: Allow for messiness, unresolved tensions, and imperfect character growth
+9. Include moments that don't serve the theme - details that just make the world feel real
+10. Let antagonists score meaningful victories, not just temporary setbacks
+
+HUMAN AUTHENTICITY GUIDELINES:
+- Character growth is NOT linear - include backsliding and old patterns resurfacing
+- Conflicts between characters should simmer and flare up unexpectedly
+- Include sensory details that ground the reader (smells, textures, specific sounds)
+- Add "useless" worldbuilding details that don't advance plot but add richness
+- Dialogue should be imperfect - interruptions, trailing off, misunderstandings
+- Vary pacing - some chapters rush with action, others linger on quiet moments
 
 OUTPUT FORMAT:
 Return a JSON array with this exact structure:
@@ -170,9 +181,19 @@ WRITING INSTRUCTIONS:
 8. Use rich, immersive prose appropriate for the genre
 9. DO NOT write short chapters - reach the target word count with detailed scenes, dialogue, and descriptions
 
+ADVANCED WRITING TECHNIQUES FOR AUTHENTICITY:
+- VARY SENTENCE RHYTHM: Use fragments during action/emotion ("Ropes. Tight. Can't breathe.")
+- ADD SENSORY GRIT: Include specific smells, textures, sounds that ground the reader
+- LET CONFLICTS LINGER: Don't resolve everything neatly within the chapter
+- INCLUDE "USELESS" DETAILS: Add texture with details that exist just to make the world feel real
+- SHOW CHARACTER BACKSLIDING: Characters can revert to old patterns after growth
+- ALLOW AMBIGUOUS MOMENTS: Not everything needs to teach a clear lesson
+- MAKE DIALOGUE MESSY: People interrupt, trail off, speak imperfectly
+- CREATE UNEVEN PACING: Some moments rush, others linger naturally
+
 WORD COUNT REQUIREMENT: Write exactly ${targetChapterLength} words. This is essential for the overall novel structure.
 
-Write the complete chapter now. Do not include chapter headers or numbering - just the prose content.`;
+Write the complete chapter now. Prioritize emotional authenticity and human messiness over perfect prose. Do not include chapter headers or numbering - just the prose content.`;
 
     try {
       if (onProgress) onProgress(`Writing Chapter ${chapterNumber}: ${chapterOutline.title}`);
@@ -188,6 +209,18 @@ Write the complete chapter now. Do not include chapter headers or numbering - ju
       const wordCount = content.split(/\s+/).length;
 
       console.log(`📝 Chapter ${chapterNumber} generated: ${wordCount} words (target: ${targetChapterLength})`);
+
+      // Analyze chapter for human authenticity markers
+      const fragmentCount = (content.match(/\.\s*[A-Z][^.]{1,15}\./g) || []).length;
+      const dialogueLines = (content.match(/["'`][^"'`]*["'`]/g) || []).length;
+      const sensoryWords = (content.match(/\b(smell|stench|aroma|texture|rough|smooth|sound|echo|taste|bitter|sweet)\w*\b/gi) || []).length;
+      
+      console.log(`📊 Chapter ${chapterNumber} authenticity analysis:`, {
+        fragments: fragmentCount,
+        dialogueLines: dialogueLines,
+        sensoryWords: sensoryWords,
+        avgSentenceLength: Math.round(wordCount / (content.split('.').length - 1))
+      });
 
       // Log if significantly off target
       if (wordCount < minWords || wordCount > maxWords) {
