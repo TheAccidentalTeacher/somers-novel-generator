@@ -307,15 +307,28 @@ router.get('/advancedStreamGeneration/:streamId', (req, res) => {
     
     res.write(`data: ${JSON.stringify(connectionMessage)}\n\n`);
 
+    // Send heartbeat every 30 seconds to keep connection alive
+    const heartbeatInterval = setInterval(() => {
+      try {
+        res.write(`data: ${JSON.stringify({ type: 'heartbeat', timestamp: Date.now() })}\n\n`);
+      } catch (error) {
+        console.log(`📡 Heartbeat failed for stream ${streamId}, cleaning up`);
+        clearInterval(heartbeatInterval);
+        advancedAI.removeStreamClient(streamId, res);
+      }
+    }, 30000);
+
     // Handle client disconnect
     req.on('close', () => {
       console.log(`📡 Client disconnected from advanced stream: ${streamId}`);
+      clearInterval(heartbeatInterval);
       advancedAI.removeStreamClient(streamId, res);
     });
 
     // Handle errors
     req.on('error', (error) => {
       console.error(`📡 Stream error for ${streamId}:`, error);
+      clearInterval(heartbeatInterval);
       advancedAI.removeStreamClient(streamId, res);
     });
 
@@ -335,12 +348,19 @@ router.get('/advancedStreamGeneration/:streamId', (req, res) => {
 
 // Advanced streaming processing function
 async function processAdvancedStream(streamId) {
+  console.log(`📡 Processing advanced stream: ${streamId}`);
   const stream = advancedAI.getStream(streamId);
-  if (!stream) return;
+  if (!stream) {
+    console.error(`❌ Stream not found: ${streamId}`);
+    return;
+  }
 
   try {
+    console.log(`📡 Stream found, checking AI configuration...`);
+    
     // Check if AI service is configured
     if (!advancedAI.isConfigured()) {
+      console.log(`⚠️  AI service not configured for stream: ${streamId}`);
       // Provide mock response for demo purposes
       advancedAI.broadcastToStream(streamId, 'process_update', { 
         message: 'Demo Mode: AI service not configured (missing OpenAI API key)' 
@@ -352,6 +372,7 @@ async function processAdvancedStream(streamId) {
       return;
     }
 
+    console.log(`✅ AI configured, starting outline creation for stream: ${streamId}`);
     advancedAI.broadcastToStream(streamId, 'process_update', { 
       message: 'Creating detailed story outline...' 
     });
@@ -359,55 +380,74 @@ async function processAdvancedStream(streamId) {
     // Create outline if not provided
     let outline = stream.storyData.outline;
     if (!outline || outline.length === 0) {
+      console.log(`📋 Creating outline for stream: ${streamId}`);
       outline = await advancedAI.createOutline(stream.storyData);
+      console.log(`✅ Outline created with ${outline.length} chapters for stream: ${streamId}`);
       advancedAI.broadcastToStream(streamId, 'process_update', { 
         message: 'Outline created, beginning chapter generation...' 
       });
+    } else {
+      console.log(`📋 Using existing outline with ${outline.length} chapters for stream: ${streamId}`);
     }
 
     const totalChapters = outline.length;
     const chapters = [];
+
+    console.log(`📝 Starting chapter generation for ${totalChapters} chapters in stream: ${streamId}`);
 
     // Generate each chapter with streaming updates
     for (let i = 0; i < totalChapters; i++) {
       const chapterNumber = i + 1;
       const chapterOutline = outline[i];
 
+      console.log(`📝 Planning Chapter ${chapterNumber}: ${chapterOutline.title} for stream: ${streamId}`);
       advancedAI.broadcastToStream(streamId, 'chapter_planning', {
         chapter: chapterNumber,
         title: chapterOutline.title
       });
 
+      console.log(`✍️  Writing Chapter ${chapterNumber}: ${chapterOutline.title} for stream: ${streamId}`);
       advancedAI.broadcastToStream(streamId, 'chapter_writing', {
         chapter: chapterNumber,
         title: chapterOutline.title
       });
 
-      const chapter = await advancedAI.generateChapterAdvanced({
-        chapterNumber,
-        chapterOutline,
-        storyData: stream.storyData,
-        previousChapters: chapters,
-        onProgress: (message) => {
-          advancedAI.broadcastToStream(streamId, 'process_update', { message });
-        }
-      });
+      try {
+        const chapter = await advancedAI.generateChapterAdvanced({
+          chapterNumber,
+          chapterOutline,
+          storyData: stream.storyData,
+          previousChapters: chapters,
+          onProgress: (message) => {
+            console.log(`📝 Chapter ${chapterNumber} progress: ${message}`);
+            advancedAI.broadcastToStream(streamId, 'process_update', { message });
+          }
+        });
 
-      chapters.push(chapter);
+        chapters.push(chapter);
+        console.log(`✅ Chapter ${chapterNumber} completed (${chapter.wordCount} words) for stream: ${streamId}`);
 
-      advancedAI.broadcastToStream(streamId, 'chapter_complete', {
-        chapter: chapterNumber,
-        title: chapter.title,
-        wordCount: chapter.wordCount,
-        progress: (chapterNumber / totalChapters) * 100
-      });
+        advancedAI.broadcastToStream(streamId, 'chapter_complete', {
+          chapter: chapterNumber,
+          title: chapter.title,
+          wordCount: chapter.wordCount,
+          progress: (chapterNumber / totalChapters) * 100
+        });
 
-      // Small delay for streaming effect
-      await new Promise(resolve => setTimeout(resolve, 1000));
+        // Small delay for streaming effect
+        await new Promise(resolve => setTimeout(resolve, 1000));
+      } catch (chapterError) {
+        console.error(`❌ Error generating Chapter ${chapterNumber} for stream ${streamId}:`, chapterError);
+        advancedAI.broadcastToStream(streamId, 'error', { 
+          error: `Chapter ${chapterNumber} generation failed: ${chapterError.message}` 
+        });
+        return;
+      }
     }
 
     const totalWords = chapters.reduce((sum, ch) => sum + ch.wordCount, 0);
 
+    console.log(`✅ Advanced streaming generation completed for stream ${streamId}: ${chapters.length} chapters, ${totalWords} words`);
     advancedAI.broadcastToStream(streamId, 'complete', {
       title: stream.storyData.title,
       chapters: chapters,
@@ -418,7 +458,8 @@ async function processAdvancedStream(streamId) {
     console.log(`✅ Advanced streaming generation completed: ${streamId}`);
 
   } catch (error) {
-    console.error(`❌ Advanced streaming generation error:`, error);
+    console.error(`❌ Advanced streaming generation error for ${streamId}:`, error);
+    console.error(`❌ Error stack:`, error.stack);
     advancedAI.broadcastToStream(streamId, 'error', { error: error.message });
   }
 }
