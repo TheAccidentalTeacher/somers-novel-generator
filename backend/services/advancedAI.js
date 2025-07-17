@@ -66,7 +66,7 @@ Be creative, engaging, and ensure each chapter builds toward a satisfying conclu
 
     try {
       const response = await this.openai.chat.completions.create({
-        model: 'gpt-4o', // Use GPT-4 for best logical reasoning
+        model: 'gpt-4o-2024-08-06', // Use latest GPT-4o model
         messages: [{ role: 'user', content: outlinePrompt }],
         max_tokens: 4000,
         temperature: 0.3, // Lower temperature for more structured outline
@@ -173,7 +173,7 @@ Write the complete chapter now. Do not include chapter headers or numbering - ju
       if (onProgress) onProgress(`Writing Chapter ${chapterNumber}: ${chapterOutline.title}`);
 
       const response = await this.openai.chat.completions.create({
-        model: 'gpt-4o', // Use GPT-4 for best creative writing
+        model: 'gpt-4o-2024-08-06', // Use latest GPT-4o model
         messages: [{ role: 'user', content: chapterPrompt }],
         max_tokens: Math.min(4000, Math.ceil(maxWords * 1.2)), // Dynamic token allocation
         temperature: 0.8, // Higher creativity for writing

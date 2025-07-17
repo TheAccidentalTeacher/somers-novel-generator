@@ -255,32 +255,82 @@ router.post('/advancedStreamGeneration', async (req, res) => {
   }
 });
 
-// Advanced streaming SSE endpoint
-router.get('/advancedStreamGeneration/:streamId', (req, res) => {
-  const { streamId } = req.params;
-  
-  console.log(`📡 Client connected to advanced stream: ${streamId}`);
-
-  // Set up SSE headers
+// Add a health check endpoint for streaming
+router.get('/streamHealth', (req, res) => {
   res.writeHead(200, {
     'Content-Type': 'text/event-stream',
     'Cache-Control': 'no-cache',
     'Connection': 'keep-alive',
     'Access-Control-Allow-Origin': '*',
-    'Access-Control-Allow-Headers': 'Cache-Control'
+    'X-Accel-Buffering': 'no'
   });
+  
+  res.write(`data: ${JSON.stringify({ type: 'health', status: 'ok' })}\n\n`);
+  
+  setTimeout(() => {
+    res.end();
+  }, 1000);
+});
 
-  // Add client to stream
-  advancedAI.addStreamClient(streamId, res);
+// Improved streaming endpoint with error handling
+router.get('/advancedStreamGeneration/:streamId', (req, res) => {
+  const { streamId } = req.params;
+  
+  console.log(`📡 Client connected to advanced stream: ${streamId}`);
 
-  // Send initial connection message
-  res.write(`data: ${JSON.stringify({ type: 'connected', streamId })}\n\n`);
+  try {
+    // Set up SSE headers with HTTP/1.1 compatibility
+    res.writeHead(200, {
+      'Content-Type': 'text/event-stream',
+      'Cache-Control': 'no-cache',
+      'Connection': 'keep-alive',
+      'Access-Control-Allow-Origin': '*',
+      'Access-Control-Allow-Headers': 'Cache-Control',
+      'Access-Control-Allow-Methods': 'GET',
+      'X-Accel-Buffering': 'no', // Disable nginx buffering
+      'Transfer-Encoding': 'chunked'
+    });
 
-  // Handle client disconnect
-  req.on('close', () => {
-    console.log(`📡 Client disconnected from advanced stream: ${streamId}`);
-    advancedAI.removeStreamClient(streamId, res);
-  });
+    // Add client to stream
+    advancedAI.addStreamClient(streamId, res);
+
+    // Send initial connection message with retry instructions
+    const connectionMessage = {
+      type: 'connected',
+      streamId,
+      fallback: {
+        usePolling: true,
+        endpoint: `/api/advancedGeneration/${streamId}`,
+        interval: 2000
+      }
+    };
+    
+    res.write(`data: ${JSON.stringify(connectionMessage)}\n\n`);
+
+    // Handle client disconnect
+    req.on('close', () => {
+      console.log(`📡 Client disconnected from advanced stream: ${streamId}`);
+      advancedAI.removeStreamClient(streamId, res);
+    });
+
+    // Handle errors
+    req.on('error', (error) => {
+      console.error(`📡 Stream error for ${streamId}:`, error);
+      advancedAI.removeStreamClient(streamId, res);
+    });
+
+  } catch (error) {
+    console.error(`📡 Failed to setup stream ${streamId}:`, error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to setup streaming connection',
+      fallback: {
+        usePolling: true,
+        endpoint: `/api/advancedGeneration/${streamId}`,
+        interval: 2000
+      }
+    });
+  }
 });
 
 // Advanced streaming processing function
