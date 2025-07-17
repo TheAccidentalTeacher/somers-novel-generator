@@ -993,6 +993,16 @@ const AutoGenerate = ({ conflictData, apiConfig, onSuccess, onError, onNotificat
         onError(new Error(eventData.error));
         break;
         
+      case 'heartbeat':
+        // Silent heartbeat to keep connection alive
+        // Only log every 10th heartbeat to avoid spam
+        if (!window.heartbeatCount) window.heartbeatCount = 0;
+        window.heartbeatCount++;
+        if (window.heartbeatCount % 10 === 0) {
+          addLog('Connection active ❤️', 'info');
+        }
+        break;
+        
       default:
         console.log('Unknown advanced stream event:', eventData);
     }
