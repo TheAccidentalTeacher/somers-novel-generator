@@ -33,9 +33,21 @@ router.post('/createOutline', async (req, res) => {
     }
 
     if (!advancedAI.isConfigured()) {
-      return res.status(503).json({
-        success: false,
-        error: 'AI service not configured. Please check OpenAI API key.'
+      // Provide mock outline for demo purposes
+      console.log('⚠️  AI service not configured, providing demo outline');
+      const mockOutline = Array.from({length: chapters}, (_, i) => ({
+        chapter: i + 1,
+        title: `Chapter ${i + 1}: [Demo Title]`,
+        summary: `This is a demo chapter summary for chapter ${i + 1}. In a real implementation with an OpenAI API key, this would contain a detailed, genre-appropriate chapter outline based on your synopsis.`,
+        wordCount: targetChapterLength,
+        themes: ['Demo Theme'],
+        keyEvents: [`Demo event for chapter ${i + 1}`]
+      }));
+
+      return res.json({
+        success: true,
+        outline: mockOutline,
+        message: 'Demo outline generated (OpenAI API key not configured)'
       });
     }
 
@@ -87,9 +99,12 @@ router.post('/advancedGeneration', async (req, res) => {
     }
 
     if (!advancedAI.isConfigured()) {
+      // Provide demo response for testing UI flow
+      console.log('⚠️  AI service not configured, providing demo response');
       return res.status(503).json({
         success: false,
-        error: 'AI service not configured. Please check OpenAI API key.'
+        error: 'Demo Mode: OpenAI API key not configured. This is a demonstration environment. To generate actual content, please configure your OpenAI API key in the environment variables.',
+        isDemoMode: true
       });
     }
 
@@ -274,6 +289,19 @@ async function processAdvancedStream(streamId) {
   if (!stream) return;
 
   try {
+    // Check if AI service is configured
+    if (!advancedAI.isConfigured()) {
+      // Provide mock response for demo purposes
+      advancedAI.broadcastToStream(streamId, 'process_update', { 
+        message: 'Demo Mode: AI service not configured (missing OpenAI API key)' 
+      });
+      
+      advancedAI.broadcastToStream(streamId, 'error', { 
+        error: 'OpenAI API key not configured. This is a demo environment. Please configure your API key to generate actual content.' 
+      });
+      return;
+    }
+
     advancedAI.broadcastToStream(streamId, 'process_update', { 
       message: 'Creating detailed story outline...' 
     });
