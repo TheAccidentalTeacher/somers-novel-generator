@@ -279,16 +279,21 @@ router.get('/advancedStreamGeneration/:streamId', (req, res) => {
   console.log(`📡 Client connected to advanced stream: ${streamId}`);
 
   try {
-    // Set up SSE headers with HTTP/1.1 compatibility
+    // Force HTTP/1.1 and set comprehensive SSE headers
     res.writeHead(200, {
-      'Content-Type': 'text/event-stream',
-      'Cache-Control': 'no-cache',
+      'Content-Type': 'text/event-stream; charset=utf-8',
+      'Cache-Control': 'no-cache, no-store, must-revalidate',
+      'Pragma': 'no-cache',
+      'Expires': '0',
       'Connection': 'keep-alive',
       'Access-Control-Allow-Origin': '*',
-      'Access-Control-Allow-Headers': 'Cache-Control',
-      'Access-Control-Allow-Methods': 'GET',
+      'Access-Control-Allow-Headers': 'Cache-Control, Content-Type',
+      'Access-Control-Allow-Methods': 'GET, OPTIONS',
+      'Access-Control-Expose-Headers': 'Content-Type',
       'X-Accel-Buffering': 'no', // Disable nginx buffering
-      'Transfer-Encoding': 'chunked'
+      'X-Content-Type-Options': 'nosniff',
+      // Force HTTP/1.1 to avoid HTTP/2 protocol errors
+      'HTTP': '1.1'
     });
 
     // Add client to stream
@@ -298,6 +303,7 @@ router.get('/advancedStreamGeneration/:streamId', (req, res) => {
     const connectionMessage = {
       type: 'connected',
       streamId,
+      timestamp: Date.now(),
       fallback: {
         usePolling: true,
         endpoint: `/api/advancedGeneration/${streamId}`,
@@ -306,43 +312,71 @@ router.get('/advancedStreamGeneration/:streamId', (req, res) => {
     };
     
     res.write(`data: ${JSON.stringify(connectionMessage)}\n\n`);
+    
+    // Send immediate test message to verify connection
+    setTimeout(() => {
+      res.write(`data: ${JSON.stringify({ 
+        type: 'process_update', 
+        message: 'Stream connection established successfully!',
+        timestamp: Date.now()
+      })}\n\n`);
+    }, 1000);
 
-    // Send heartbeat every 30 seconds to keep connection alive
+    // Send heartbeat every 15 seconds (reduced from 30s)
     const heartbeatInterval = setInterval(() => {
       try {
-        res.write(`data: ${JSON.stringify({ type: 'heartbeat', timestamp: Date.now() })}\n\n`);
+        res.write(`data: ${JSON.stringify({ 
+          type: 'heartbeat', 
+          timestamp: Date.now(),
+          streamId 
+        })}\n\n`);
       } catch (error) {
-        console.log(`📡 Heartbeat failed for stream ${streamId}, cleaning up`);
+        console.log(`📡 Heartbeat failed for stream ${streamId}, cleaning up:`, error.message);
         clearInterval(heartbeatInterval);
         advancedAI.removeStreamClient(streamId, res);
       }
-    }, 30000);
+    }, 15000);
 
-    // Handle client disconnect
+    // Handle client disconnect with better logging
     req.on('close', () => {
       console.log(`📡 Client disconnected from advanced stream: ${streamId}`);
       clearInterval(heartbeatInterval);
       advancedAI.removeStreamClient(streamId, res);
     });
 
-    // Handle errors
+    // Handle errors with detailed logging
     req.on('error', (error) => {
-      console.error(`📡 Stream error for ${streamId}:`, error);
+      console.error(`📡 Stream request error for ${streamId}:`, error.message);
+      console.error(`📡 Error type: ${error.name}, Code: ${error.code}`);
+      clearInterval(heartbeatInterval);
+      advancedAI.removeStreamClient(streamId, res);
+    });
+    
+    // Handle response errors
+    res.on('error', (error) => {
+      console.error(`📡 Stream response error for ${streamId}:`, error.message);
+      console.error(`📡 Error type: ${error.name}, Code: ${error.code}`);
       clearInterval(heartbeatInterval);
       advancedAI.removeStreamClient(streamId, res);
     });
 
   } catch (error) {
-    console.error(`📡 Failed to setup stream ${streamId}:`, error);
-    res.status(500).json({
-      success: false,
-      error: 'Failed to setup streaming connection',
-      fallback: {
-        usePolling: true,
-        endpoint: `/api/advancedGeneration/${streamId}`,
-        interval: 2000
-      }
-    });
+    console.error(`📡 Failed to setup stream ${streamId}:`, error.message);
+    console.error(`📡 Setup error type: ${error.name}, Stack:`, error.stack);
+    
+    // Try to send error response if headers not sent
+    if (!res.headersSent) {
+      res.status(500).json({
+        success: false,
+        error: 'Failed to setup streaming connection',
+        details: error.message,
+        fallback: {
+          usePolling: true,
+          endpoint: `/api/advancedGeneration/${streamId}`,
+          interval: 2000
+        }
+      });
+    }
   }
 });
 

@@ -378,15 +378,41 @@ Write the complete chapter now. Do not include chapter headers or numbering - ju
   broadcastToStream(streamId, event, data) {
     const stream = this.getStream(streamId);
     if (stream) {
-      const message = `data: ${JSON.stringify({ type: event, ...data })}\n\n`;
+      const message = `data: ${JSON.stringify({ 
+        type: event, 
+        timestamp: Date.now(),
+        streamId,
+        ...data 
+      })}\n\n`;
+      
+      // Keep track of failed clients to remove them
+      const failedClients = new Set();
+      
       stream.clients.forEach(client => {
         try {
-          client.write(message);
+          // Check if the response is still writable
+          if (client.writable && !client.destroyed) {
+            client.write(message);
+            console.log(`📡 Broadcasted ${event} to stream ${streamId}`);
+          } else {
+            console.log(`📡 Client no longer writable for stream ${streamId}, removing`);
+            failedClients.add(client);
+          }
         } catch (error) {
-          console.error('Error writing to stream client:', error);
-          stream.clients.delete(client);
+          console.error(`📡 Error writing to stream client ${streamId}:`, error.message);
+          console.error(`📡 Error type: ${error.name}, Code: ${error.code}`);
+          failedClients.add(client);
         }
       });
+      
+      // Remove failed clients
+      failedClients.forEach(client => {
+        stream.clients.delete(client);
+      });
+      
+      console.log(`📡 Stream ${streamId} has ${stream.clients.size} active clients after broadcast`);
+    } else {
+      console.error(`📡 Cannot broadcast to stream ${streamId}: stream not found`);
     }
   }
 }

@@ -902,16 +902,29 @@ const AutoGenerate = ({ conflictData, apiConfig, onSuccess, onError, onNotificat
   const startAdvancedStreaming = (streamId) => {
     // Start Server-Sent Events stream for advanced generation
     const streamUrl = `${apiConfig.baseUrl}/advancedStreamGeneration/${streamId}`;
+    console.log(`📡 Starting advanced stream connection to: ${streamUrl}`);
+    
     const eventSource = new EventSource(streamUrl);
+    let connectionTestPassed = false;
+    let fallbackTimeout;
 
     eventSource.onopen = () => {
       addLog('Advanced streaming connected', 'success');
       onNotification('Intelligent generation started', 'success');
+      console.log(`📡 Advanced stream opened for ${streamId}`);
     };
 
     eventSource.onmessage = (event) => {
       try {
         const eventData = JSON.parse(event.data);
+        
+        // Mark connection as working if we receive any message
+        if (!connectionTestPassed) {
+          connectionTestPassed = true;
+          clearTimeout(fallbackTimeout);
+          console.log(`✅ Advanced stream connection verified for ${streamId}`);
+        }
+        
         handleAdvancedStreamEvent(eventData);
       } catch (error) {
         console.error('Error parsing advanced stream data:', error);
@@ -920,13 +933,36 @@ const AutoGenerate = ({ conflictData, apiConfig, onSuccess, onError, onNotificat
 
     eventSource.onerror = (error) => {
       console.error('Advanced stream error:', error);
-      setError(new Error('Advanced stream connection error'));
-      setIsGenerating(false);
-      eventSource.close();
+      
+      // If we haven't received any messages yet, fall back to polling
+      if (!connectionTestPassed) {
+        console.log(`📡 Stream failed for ${streamId}, falling back to polling`);
+        eventSource.close();
+        addLog('Streaming failed, switching to polling mode...', 'warning');
+        startAdvancedPolling(streamId);
+      } else {
+        addLog('Stream connection lost, attempting to reconnect...', 'warning');
+        setError(new Error('Advanced stream connection error'));
+        setIsGenerating(false);
+        eventSource.close();
+      }
     };
 
+    // Set up fallback timeout - if no messages received in 10 seconds, switch to polling
+    fallbackTimeout = setTimeout(() => {
+      if (!connectionTestPassed) {
+        console.log(`📡 Stream timeout for ${streamId}, falling back to polling`);
+        eventSource.close();
+        addLog('Stream connection timeout, switching to polling mode...', 'warning');
+        startAdvancedPolling(streamId);
+      }
+    }, 10000);
+
     // Store reference for cleanup
-    abortControllerRef.current = { abort: () => eventSource.close() };
+    abortControllerRef.current = { abort: () => {
+      clearTimeout(fallbackTimeout);
+      eventSource.close();
+    }};
   };
 
   const handleAdvancedStreamEvent = (eventData) => {
