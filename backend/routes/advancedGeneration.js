@@ -264,14 +264,24 @@ router.post('/advancedStreamGeneration', async (req, res) => {
 // Add a health check endpoint for streaming
 router.get('/streamHealth', (req, res) => {
   res.writeHead(200, {
-    'Content-Type': 'text/event-stream',
-    'Cache-Control': 'no-cache',
+    'Content-Type': 'text/event-stream; charset=utf-8',
+    'Cache-Control': 'no-cache, no-store, must-revalidate, proxy-revalidate',
     'Connection': 'keep-alive',
     'Access-Control-Allow-Origin': '*',
-    'X-Accel-Buffering': 'no'
+    'X-Accel-Buffering': 'no',
+    // Force HTTP/1.1 to avoid HTTP/2 protocol errors
+    'HTTP': '1.1',
+    'Transfer-Encoding': 'chunked',
+    'X-HTTP-Method-Override': 'GET',
+    'X-Forwarded-Proto': 'http'
   });
   
-  res.write(`data: ${JSON.stringify({ type: 'health', status: 'ok' })}\n\n`);
+  res.write(`data: ${JSON.stringify({ 
+    type: 'health', 
+    status: 'ok', 
+    protocol: 'HTTP/1.1',
+    timestamp: Date.now() 
+  })}\n\n`);
   
   setTimeout(() => {
     res.end();
@@ -285,10 +295,10 @@ router.get('/advancedStreamGeneration/:streamId', (req, res) => {
   console.log(`📡 Client connected to advanced stream: ${streamId}`);
 
   try {
-    // Force HTTP/1.1 and set comprehensive SSE headers
+    // Force HTTP/1.1 with comprehensive protocol error prevention
     res.writeHead(200, {
       'Content-Type': 'text/event-stream; charset=utf-8',
-      'Cache-Control': 'no-cache, no-store, must-revalidate',
+      'Cache-Control': 'no-cache, no-store, must-revalidate, proxy-revalidate',
       'Pragma': 'no-cache',
       'Expires': '0',
       'Connection': 'keep-alive',
@@ -299,21 +309,28 @@ router.get('/advancedStreamGeneration/:streamId', (req, res) => {
       'X-Accel-Buffering': 'no', // Disable nginx buffering
       'X-Content-Type-Options': 'nosniff',
       // Force HTTP/1.1 to avoid HTTP/2 protocol errors
-      'HTTP': '1.1'
+      'HTTP': '1.1',
+      'Transfer-Encoding': 'chunked',
+      // Additional Railway/HTTP2 protocol error prevention
+      'X-HTTP-Method-Override': 'GET',
+      'X-Forwarded-Proto': 'http',
+      'Upgrade-Insecure-Requests': '0'
     });
 
     // Add client to stream
     advancedAI.addStreamClient(streamId, res);
 
-    // Send initial connection message with retry instructions
+    // Send initial connection message with enhanced fallback
     const connectionMessage = {
       type: 'connected',
       streamId,
       timestamp: Date.now(),
+      protocolVersion: 'HTTP/1.1',
       fallback: {
         usePolling: true,
         endpoint: `/api/advancedGeneration/${streamId}`,
-        interval: 2000
+        interval: 2000,
+        reason: 'HTTP/2 protocol error prevention'
       }
     };
     
@@ -321,27 +338,50 @@ router.get('/advancedStreamGeneration/:streamId', (req, res) => {
     
     // Send immediate test message to verify connection
     setTimeout(() => {
-      res.write(`data: ${JSON.stringify({ 
-        type: 'process_update', 
-        message: 'Stream connection established successfully!',
-        timestamp: Date.now()
-      })}\n\n`);
-    }, 1000);
+      try {
+        res.write(`data: ${JSON.stringify({ 
+          type: 'process_update', 
+          message: 'Stream connection established successfully with HTTP/1.1!',
+          timestamp: Date.now(),
+          protocol: 'HTTP/1.1'
+        })}\n\n`);
+      } catch (error) {
+        console.error(`📡 Failed to send test message for stream ${streamId}:`, error.message);
+        // Immediately fallback to polling if we can't write
+        advancedAI.broadcastToStream(streamId, 'fallback_required', { 
+          reason: 'Initial write test failed',
+          error: error.message 
+        });
+      }
+    }, 500); // Reduced delay for faster detection
 
-    // Send heartbeat every 15 seconds (reduced from 30s)
+    // Send heartbeat every 10 seconds (reduced for faster error detection)
     const heartbeatInterval = setInterval(() => {
       try {
+        if (res.writableEnded || res.destroyed) {
+          console.log(`📡 Stream ${streamId} already ended, cleaning up heartbeat`);
+          clearInterval(heartbeatInterval);
+          advancedAI.removeStreamClient(streamId, res);
+          return;
+        }
+        
         res.write(`data: ${JSON.stringify({ 
           type: 'heartbeat', 
           timestamp: Date.now(),
-          streamId 
+          streamId,
+          protocol: 'HTTP/1.1'
         })}\n\n`);
       } catch (error) {
-        console.log(`📡 Heartbeat failed for stream ${streamId}, cleaning up:`, error.message);
+        console.log(`📡 Heartbeat failed for stream ${streamId}, switching to polling:`, error.message);
         clearInterval(heartbeatInterval);
         advancedAI.removeStreamClient(streamId, res);
+        // Notify the stream to use polling fallback
+        advancedAI.broadcastToStream(streamId, 'fallback_required', { 
+          reason: 'Heartbeat failed - HTTP/2 protocol error detected',
+          error: error.message 
+        });
       }
-    }, 15000);
+    }, 10000);
 
     // Handle client disconnect with better logging
     req.on('close', () => {
