@@ -700,6 +700,8 @@ const AutoGenerate = ({ conflictData, apiConfig, onSuccess, onError, onNotificat
         // Handle streaming mode
         setJobId(data.streamId);
         addLog(`Advanced streaming generation started with ID: ${data.streamId}`, 'success');
+        onNotification('Starting intelligent generation...', 'info');
+        setCurrentProcess('Establishing connection...');
         startAdvancedStreaming(data.streamId);
       } else {
         // Handle batch mode
@@ -904,13 +906,25 @@ const AutoGenerate = ({ conflictData, apiConfig, onSuccess, onError, onNotificat
     const streamUrl = `${apiConfig.baseUrl}/advancedStreamGeneration/${streamId}`;
     console.log(`📡 Starting advanced stream connection to: ${streamUrl}`);
     
-    const eventSource = new EventSource(streamUrl);
+    let eventSource;
     let connectionTestPassed = false;
     let fallbackTimeout;
+
+    try {
+      eventSource = new EventSource(streamUrl);
+    } catch (error) {
+      console.error('Failed to create EventSource:', error);
+      addLog('Stream connection failed, using polling mode...', 'warning');
+      onNotification('Using polling mode (streaming unavailable)', 'warning');
+      setCurrentProcess('Using polling mode...');
+      startAdvancedPolling(streamId);
+      return;
+    }
 
     eventSource.onopen = () => {
       addLog('Advanced streaming connected', 'success');
       onNotification('Intelligent generation started', 'success');
+      setCurrentProcess('Stream connected, starting generation...');
       console.log(`📡 Advanced stream opened for ${streamId}`);
     };
 
@@ -938,25 +952,33 @@ const AutoGenerate = ({ conflictData, apiConfig, onSuccess, onError, onNotificat
       if (!connectionTestPassed) {
         console.log(`📡 Stream failed for ${streamId}, falling back to polling`);
         eventSource.close();
-        addLog('Streaming failed, switching to polling mode...', 'warning');
+        addLog('Stream connection failed (likely HTTP/2 issue), switching to polling mode...', 'warning');
+        onNotification('Switching to polling mode due to connection issue', 'warning');
+        setCurrentProcess('Switching to polling mode...');
         startAdvancedPolling(streamId);
       } else {
         addLog('Stream connection lost, attempting to reconnect...', 'warning');
-        setError(new Error('Advanced stream connection error'));
-        setIsGenerating(false);
+        onNotification('Connection lost, falling back to polling', 'warning');
+        setCurrentProcess('Connection lost, falling back to polling...');
         eventSource.close();
+        // Don't set error immediately, try polling first
+        startAdvancedPolling(streamId);
       }
     };
 
-    // Set up fallback timeout - if no messages received in 10 seconds, switch to polling
+    // Set up fallback timeout - if no messages received in 8 seconds, switch to polling
     fallbackTimeout = setTimeout(() => {
       if (!connectionTestPassed) {
         console.log(`📡 Stream timeout for ${streamId}, falling back to polling`);
-        eventSource.close();
-        addLog('Stream connection timeout, switching to polling mode...', 'warning');
+        if (eventSource) {
+          eventSource.close();
+        }
+        addLog('Stream connection timeout (Railway/HTTP2 issue), switching to polling mode...', 'warning');
+        onNotification('Connection timeout, using polling mode instead', 'warning');
+        setCurrentProcess('Switching to polling mode due to connection timeout...');
         startAdvancedPolling(streamId);
       }
-    }, 10000);
+    }, 8000); // Reduced from 10 to 8 seconds for faster fallback
 
     // Store reference for cleanup
     abortControllerRef.current = { abort: () => {
@@ -1036,7 +1058,18 @@ const AutoGenerate = ({ conflictData, apiConfig, onSuccess, onError, onNotificat
         window.heartbeatCount++;
         if (window.heartbeatCount % 10 === 0) {
           addLog('Connection active ❤️', 'info');
+          setCurrentProcess('Generation in progress...');
         }
+        break;
+        
+      case 'fallback_required':
+        addLog('Stream requires fallback to polling', 'warning');
+        onNotification('Switching to polling mode', 'warning');
+        setCurrentProcess('Switching to polling mode...');
+        if (abortControllerRef.current) {
+          abortControllerRef.current.abort();
+        }
+        startAdvancedPolling(streamId);
         break;
         
       default:
