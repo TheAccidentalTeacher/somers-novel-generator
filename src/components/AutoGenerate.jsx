@@ -543,9 +543,11 @@ const AutoGenerate = ({ conflictData, apiConfig, onSuccess, onError, onNotificat
 
   // Calculate chapters when word count or target length changes
   useEffect(() => {
-    if (storySetup.wordCount && storySetup.targetChapterLength) {
+    if (storySetup.wordCount && storySetup.targetChapterLength && storySetup.wordCount > 0 && storySetup.targetChapterLength > 0) {
       const calculated = Math.round(storySetup.wordCount / storySetup.targetChapterLength);
-      setCalculatedChapters(calculated);
+      setCalculatedChapters(Math.max(1, calculated)); // Ensure at least 1 chapter
+    } else {
+      setCalculatedChapters(1); // Default to 1 chapter if invalid inputs
     }
   }, [storySetup.wordCount, storySetup.targetChapterLength]);
 
@@ -929,6 +931,14 @@ const AutoGenerate = ({ conflictData, apiConfig, onSuccess, onError, onNotificat
 
   const handleAdvancedStreamEvent = (eventData) => {
     switch (eventData.type) {
+      case 'connected':
+        addLog(`Connected to stream: ${eventData.streamId}`, 'info');
+        // Check if fallback polling is suggested
+        if (eventData.fallback?.usePolling) {
+          addLog('Stream fallback available if needed', 'info');
+        }
+        break;
+        
       case 'process_update':
         setCurrentProcess(eventData.message);
         addLog(eventData.message, 'info');
