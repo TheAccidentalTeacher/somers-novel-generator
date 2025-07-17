@@ -107,11 +107,13 @@ Be creative, engaging, and ensure each chapter builds toward a satisfying conclu
       onProgress
     } = params;
 
-    const { title, genre, subgenre, genreInstructions, synopsis, targetChapterLength, chapterVariance } = storyData;
+    const { title, genre, subgenre, genreInstructions, synopsis, targetChapterLength, chapterVariance = 300 } = storyData;
     
-    // Calculate target word range
-    const minWords = targetChapterLength - chapterVariance;
+    // Calculate target word range with proper variance
+    const minWords = Math.max(500, targetChapterLength - chapterVariance);
     const maxWords = targetChapterLength + chapterVariance;
+
+    console.log(`🎯 Chapter ${chapterNumber} word target: ${minWords}-${maxWords} words (target: ${targetChapterLength})`);
 
     // Create context from previous chapters (summarize if too long)
     let previousContext = '';
@@ -163,9 +165,12 @@ WRITING INSTRUCTIONS:
 3. Show don't tell - use vivid scenes and dialogue
 4. Follow ${genre} genre conventions
 5. Ensure proper pacing and emotional beats
-6. Target ${targetChapterLength} words (±${chapterVariance})
+6. CRITICAL: This chapter MUST be ${targetChapterLength} words (±${chapterVariance}). Write ${minWords}-${maxWords} words.
 7. End with appropriate tension/resolution for chapter position
 8. Use rich, immersive prose appropriate for the genre
+9. DO NOT write short chapters - reach the target word count with detailed scenes, dialogue, and descriptions
+
+WORD COUNT REQUIREMENT: Write exactly ${targetChapterLength} words. This is essential for the overall novel structure.
 
 Write the complete chapter now. Do not include chapter headers or numbering - just the prose content.`;
 
@@ -175,12 +180,19 @@ Write the complete chapter now. Do not include chapter headers or numbering - ju
       const response = await this.openai.chat.completions.create({
         model: 'gpt-4o-2024-08-06', // Use latest GPT-4o model
         messages: [{ role: 'user', content: chapterPrompt }],
-        max_tokens: Math.min(4000, Math.ceil(maxWords * 1.2)), // Dynamic token allocation
+        max_tokens: Math.min(16000, Math.ceil(maxWords * 1.8)), // Increased token allocation (GPT-4 tokens ≈ 0.75 words)
         temperature: 0.8, // Higher creativity for writing
       });
 
       const content = response.choices[0].message.content.trim();
       const wordCount = content.split(/\s+/).length;
+
+      console.log(`📝 Chapter ${chapterNumber} generated: ${wordCount} words (target: ${targetChapterLength})`);
+
+      // Log if significantly off target
+      if (wordCount < minWords || wordCount > maxWords) {
+        console.warn(`⚠️  Chapter ${chapterNumber} word count off target: ${wordCount} words (expected: ${minWords}-${maxWords})`);
+      }
 
       return {
         title: chapterOutline.title,

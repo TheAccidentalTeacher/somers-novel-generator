@@ -233,6 +233,12 @@ router.post('/advancedStreamGeneration', async (req, res) => {
     const streamId = advancedAI.createStream(storyData, preferences);
     
     console.log(`📡 Advanced streaming generation created: ${streamId}`);
+    console.log(`🎯 Story data word targets:`, {
+      wordCount: storyData.wordCount,
+      chapters: storyData.chapters,
+      targetChapterLength: storyData.targetChapterLength,
+      calculatedTarget: storyData.wordCount / storyData.chapters
+    });
 
     // Start processing asynchronously
     processAdvancedStream(streamId).catch(error => {
@@ -447,6 +453,14 @@ async function processAdvancedStream(streamId) {
       });
 
       try {
+        console.log(`🎯 Generating Chapter ${chapterNumber} with targets:`, {
+          title: chapterOutline.title,
+          targetLength: stream.storyData.targetChapterLength,
+          variance: stream.storyData.chapterVariance,
+          minWords: stream.storyData.targetChapterLength - (stream.storyData.chapterVariance || 300),
+          maxWords: stream.storyData.targetChapterLength + (stream.storyData.chapterVariance || 300)
+        });
+        
         const chapter = await advancedAI.generateChapterAdvanced({
           chapterNumber,
           chapterOutline,
@@ -460,6 +474,12 @@ async function processAdvancedStream(streamId) {
 
         chapters.push(chapter);
         console.log(`✅ Chapter ${chapterNumber} completed (${chapter.wordCount} words) for stream: ${streamId}`);
+
+        // Calculate actual vs target for monitoring
+        const targetLength = stream.storyData.targetChapterLength;
+        const variance = stream.storyData.chapterVariance || 300;
+        const withinTarget = chapter.wordCount >= (targetLength - variance) && chapter.wordCount <= (targetLength + variance);
+        console.log(`📊 Chapter ${chapterNumber} word analysis: ${chapter.wordCount}/${targetLength} words (${withinTarget ? '✅ within target' : '⚠️ off target'})`);
 
         advancedAI.broadcastToStream(streamId, 'chapter_complete', {
           chapter: chapterNumber,
