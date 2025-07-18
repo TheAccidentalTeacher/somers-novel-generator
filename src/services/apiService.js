@@ -206,17 +206,47 @@ class APIService {
   }
 
   async advancedGeneration(storyData) {
-    return this.makeRequest('/advancedGeneration', {
-      method: 'POST',
-      body: storyData,
-      timeout: 600000 // 10 minutes for advanced generation
-    });
+    console.log(`🌐 API SERVICE DEBUG: Starting advanced generation request`);
+    console.log(`🌐 Story data:`, storyData);
+    console.log(`🌐 URL will be: ${this.config.baseUrl}/advancedGeneration`);
+    
+    try {
+      const result = await this.makeRequest('/advancedGeneration', {
+        method: 'POST',
+        body: storyData,
+        timeout: 600000 // 10 minutes for advanced generation
+      });
+      
+      console.log(`🌐 API SERVICE DEBUG: Advanced generation response:`, result);
+      return result;
+    } catch (error) {
+      console.error(`🚨 API SERVICE DEBUG: Advanced generation error:`, error);
+      throw error;
+    }
   }
 
   async getGenerationStatus(jobId) {
-    return this.makeRequest(`/advancedGeneration/${jobId}`, {
-      method: 'GET'
-    });
+    console.log(`🌐 API SERVICE DEBUG: Getting status for job ${jobId}`);
+    console.log(`🌐 Full URL will be: ${this.config.baseUrl}/advancedGeneration/${jobId}`);
+    
+    try {
+      const result = await this.makeRequest(`/advancedGeneration/${jobId}`, {
+        method: 'GET'
+      });
+      
+      console.log(`🌐 API SERVICE DEBUG: Received result:`, result);
+      console.log(`🌐 Job details:`, {
+        exists: !!result.job,
+        status: result.job?.status,
+        progress: result.job?.progress,
+        currentProcess: result.job?.currentProcess
+      });
+      
+      return result;
+    } catch (error) {
+      console.error(`🚨 API SERVICE DEBUG: Error getting job status:`, error);
+      throw error;
+    }
   }
 
   async cancelGeneration(jobId) {

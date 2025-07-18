@@ -99,12 +99,24 @@ router.post('/createOutline', async (req, res) => {
 // Advanced batch generation endpoint
 router.post('/advancedGeneration', async (req, res) => {
   try {
-    console.log('🚀 Starting advanced generation...');
+    console.log('🚀 BACKEND DEBUG: Starting advanced generation...');
+    console.log('🚀 Request body keys:', Object.keys(req.body));
+    console.log('🚀 Request headers:', req.headers);
+    console.log('🚀 Request URL:', req.url);
     
     const { storyData, preferences, useAdvancedIteration } = req.body;
+    
+    console.log('🚀 BACKEND DEBUG: Story data received:', {
+      title: storyData?.title,
+      genre: storyData?.genre,
+      chapters: storyData?.chapters,
+      wordCount: storyData?.wordCount,
+      synopsisLength: storyData?.synopsis?.length
+    });
 
     // Enhanced validation for story data
     if (!storyData || typeof storyData !== 'object') {
+      console.log('❌ BACKEND DEBUG: Invalid story data');
       return res.status(400).json({
         success: false,
         error: 'Story data is required and must be an object'
@@ -112,6 +124,7 @@ router.post('/advancedGeneration', async (req, res) => {
     }
     
     if (!storyData.title || typeof storyData.title !== 'string' || storyData.title.trim().length === 0) {
+      console.log('❌ BACKEND DEBUG: Invalid title');
       return res.status(400).json({
         success: false,
         error: 'Story title is required and must be a non-empty string'
@@ -119,6 +132,7 @@ router.post('/advancedGeneration', async (req, res) => {
     }
     
     if (!storyData.synopsis || typeof storyData.synopsis !== 'string' || storyData.synopsis.trim().length < 10) {
+      console.log('❌ BACKEND DEBUG: Invalid synopsis');
       return res.status(400).json({
         success: false,
         error: 'Story synopsis is required and must be at least 10 characters'
@@ -126,20 +140,23 @@ router.post('/advancedGeneration', async (req, res) => {
     }
 
     if (!advancedAI.isConfigured()) {
+      console.log('❌ BACKEND DEBUG: AI service not configured');
       return res.status(503).json({
         success: false,
         error: 'AI service not configured. Please check OpenAI API key.'
       });
     }
 
+    console.log('🚀 BACKEND DEBUG: Creating job...');
     // Create job
-    const jobId = advancedAI.createJob(storyData, preferences);
+    const jobId = await advancedAI.createJob(storyData, preferences);
     
-    console.log(`📝 Advanced generation job created: ${jobId}`);
+    console.log(`📝 BACKEND DEBUG: Advanced generation job created: ${jobId}`);
 
     // Start processing asynchronously with proper error handling
+    console.log('🚀 BACKEND DEBUG: Starting background processing...');
     advancedAI.processAdvancedGeneration(jobId).catch(error => {
-      console.error(`Job ${jobId} processing error:`, error);
+      console.error(`❌ BACKEND DEBUG: Job ${jobId} processing error:`, error);
       // Ensure job status is updated on failure
       advancedAI.updateJob(jobId, {
         status: 'failed',
@@ -148,11 +165,15 @@ router.post('/advancedGeneration', async (req, res) => {
       });
     });
 
-    res.json({
+    console.log('🚀 BACKEND DEBUG: Sending response to frontend...');
+    const response = {
       success: true,
       jobId: jobId,
       message: 'Advanced generation started'
-    });
+    };
+    console.log('🚀 BACKEND DEBUG: Response:', response);
+    
+    res.json(response);
 
   } catch (error) {
     console.error('❌ Advanced generation start error:', error);
@@ -167,25 +188,36 @@ router.post('/advancedGeneration', async (req, res) => {
 router.get('/advancedGeneration/:jobId', async (req, res) => {
   try {
     const { jobId } = req.params;
+    console.log(`🔍 BACKEND DEBUG: Getting status for job ${jobId}`);
     
     // Validate job ID format (simple validation for single user)
     if (!jobId || typeof jobId !== 'string' || jobId.length === 0) {
+      console.log(`❌ BACKEND DEBUG: Invalid job ID: ${jobId}`);
       return res.status(400).json({
         success: false,
         error: 'Valid job ID is required'
       });
     }
     
-    const job = advancedAI.getJob(jobId);
+    console.log(`🔍 BACKEND DEBUG: Calling advancedAI.getJob(${jobId})`);
+    const job = await advancedAI.getJob(jobId);
+    console.log(`🔍 BACKEND DEBUG: Job result:`, job ? {
+      id: job.id,
+      status: job.status,
+      progress: job.progress,
+      currentProcess: job.currentProcess,
+      logsCount: job.logs?.length || 0
+    } : 'null');
 
     if (!job) {
+      console.log(`❌ BACKEND DEBUG: Job ${jobId} not found`);
       return res.status(404).json({
         success: false,
         error: 'Job not found'
       });
     }
 
-    res.json({
+    const response = {
       success: true,
       job: {
         id: job.id,
@@ -202,7 +234,15 @@ router.get('/advancedGeneration/:jobId', async (req, res) => {
           Math.round(((Date.now() - job.startTime.getTime()) / job.progress) * (100 - job.progress) / 1000) + 's' : 
           'Calculating...'
       }
+    };
+    
+    console.log(`🔍 BACKEND DEBUG: Sending job status response:`, {
+      jobId: response.job.id,
+      status: response.job.status,
+      progress: response.job.progress
     });
+    
+    res.json(response);
 
   } catch (error) {
     console.error('❌ Job status error:', error);
