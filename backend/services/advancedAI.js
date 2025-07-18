@@ -403,6 +403,10 @@ Write the complete chapter now. Do not include chapter headers or numbering - ju
       // Use setTimeout instead of setImmediate for better compatibility
       setTimeout(async () => {
         console.log(`🎬 setTimeout callback executed for job ${jobId}`);
+        console.log(`🚨 CRITICAL DEBUG: About to start background generation!`);
+        console.log(`🚨 Outline length: ${outline.length}`);
+        console.log(`🚨 Outline sample: ${JSON.stringify(outline[0], null, 2)}`);
+        
         try {
           // Double-check job exists before starting generation
           const jobCheck = await this.getJob(jobId);
@@ -413,8 +417,10 @@ Write the complete chapter now. Do not include chapter headers or numbering - ju
           
           console.log(`⚡ Background generation starting for job ${jobId}...`);
           console.log(`📝 Job status: ${jobCheck.status}, outline length: ${outline.length}`);
+          console.log(`🚨 CALLING generateChaptersWithTimeoutProtection NOW!`);
           
           await this.generateChaptersWithTimeoutProtection(jobId, outline);
+          console.log(`🚨 generateChaptersWithTimeoutProtection COMPLETED!`);
         } catch (error) {
           console.error(`❌ Background generation error for job ${jobId}:`, error);
           console.error(`❌ Error stack:`, error.stack);
@@ -467,12 +473,16 @@ Write the complete chapter now. Do not include chapter headers or numbering - ju
   async generateChaptersWithTimeoutProtection(jobId, outline) {
     console.log(`🎬 Background generation function called for job ${jobId}`);
     console.log(`📋 Outline validation: ${outline ? `${outline.length} chapters` : 'null/undefined'}`);
+    console.log(`🚨 ENTERING generateChaptersWithTimeoutProtection!`);
+    console.log(`🚨 Function parameters: jobId=${jobId}, outline length=${outline?.length}`);
     
     // Validate outline before proceeding
     if (!outline || !Array.isArray(outline) || outline.length === 0) {
       console.error(`❌ Invalid outline for job ${jobId}: ${outline}`);
       throw new Error('Invalid or empty outline provided');
     }
+    
+    console.log(`🚨 Outline validation passed! Getting job...`);
     
     const job = await this.getJob(jobId);
     if (!job) {
@@ -482,6 +492,7 @@ Write the complete chapter now. Do not include chapter headers or numbering - ju
 
     console.log(`🔍 Job found: ${job.id}, status: ${job.status}`);
     console.log(`📊 Job data validation: storyData=${!!job.storyData}, title=${job.storyData?.title}`);
+    console.log(`🚨 About to start chapter generation loop!`);
 
     try {
       const totalChapters = outline.length;
