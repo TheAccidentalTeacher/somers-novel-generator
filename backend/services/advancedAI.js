@@ -76,17 +76,17 @@ Return a JSON array with this exact structure:
 [
   {
     "title": "Chapter Title",
-    "summary": "Brief but detailed chapter summary (2-3 sentences) describing the key events, character developments, conflicts, and emotional beats. Focus on WHAT HAPPENS in the chapter, not how long it should be."
+    "summary": "Concise chapter summary (1-2 sentences) describing the key events, character developments, conflicts, and emotional beats. Focus on WHAT HAPPENS in the chapter. Keep each summary under 50 words."
   }
 ]
 
-Be creative, engaging, and ensure each chapter builds toward a satisfying conclusion. The outline should feel like a complete, well-structured story.`;
+Be creative, engaging, and ensure each chapter builds toward a satisfying conclusion. The outline should feel like a complete, well-structured story. Keep summaries brief and focused.`;
 
     try {
       const response = await this.openai.chat.completions.create({
         model: 'gpt-4o', // Use GPT-4 for best logical reasoning
         messages: [{ role: 'user', content: outlinePrompt }],
-        max_tokens: 4000,
+        max_tokens: 800, // Reduced from 4000 - outlines should be concise
         temperature: 0.3, // Lower temperature for more structured outline
       });
 
