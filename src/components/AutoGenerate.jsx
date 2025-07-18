@@ -494,6 +494,7 @@ const AutoGenerate = ({ conflictData, apiConfig, onSuccess, onError, onNotificat
 
   const createOutline = async () => {
     try {
+      console.log('🔍 DEBUG: Starting outline creation...');
       setCurrentProcess('Analyzing your synopsis with GPT-4...');
       
       const outlineData = {
@@ -508,19 +509,29 @@ const AutoGenerate = ({ conflictData, apiConfig, onSuccess, onError, onNotificat
         fictionLength: storySetup.fictionLength
       };
 
+      console.log('🔍 DEBUG: Outline data to send:', outlineData);
       setCurrentProcess('Creating detailed story structure...');
 
       // Use the API service instead of raw fetch
+      console.log('🔍 DEBUG: Calling apiService.createOutline...');
       const data = await apiService.createOutline(outlineData);
+      console.log('🔍 DEBUG: Received response:', data);
 
-      setOutline(data.outline);
-      setCurrentProcess('');
-      setGenerationPhase('outline');
-      addLog('Story outline created successfully', 'success');
-      onNotification('Outline ready for review!', 'success');
+      if (data && data.outline) {
+        console.log('🔍 DEBUG: Setting outline with length:', data.outline.length);
+        setOutline(data.outline);
+        setCurrentProcess('');
+        setGenerationPhase('outline');
+        addLog('Story outline created successfully', 'success');
+        onNotification('Outline ready for review!', 'success');
+        console.log('🔍 DEBUG: Outline creation completed successfully');
+      } else {
+        console.error('🔍 DEBUG: No outline in response data:', data);
+        throw new Error('No outline received from server');
+      }
 
     } catch (error) {
-      console.error('Outline creation error:', error);
+      console.error('🔍 DEBUG: Outline creation error:', error);
       setError(error);
       setCurrentProcess('');
       setGenerationPhase('setup');
