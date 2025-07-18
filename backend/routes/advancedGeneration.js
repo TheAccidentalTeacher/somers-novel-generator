@@ -401,7 +401,7 @@ async function processAdvancedStream(streamId) {
         title: chapterOutline.title
       });
 
-      const chapter = await advancedAI.generateChapterAdvanced({
+      let chapter = await advancedAI.generateChapterAdvanced({
         chapterNumber,
         chapterOutline,
         storyData: stream.storyData,
@@ -411,12 +411,49 @@ async function processAdvancedStream(streamId) {
         }
       });
 
+      // Check if chapter meets word count requirements and retry if needed
+      const targetWordCount = stream.storyData.targetChapterLength || 1500;
+      const minWordCount = targetWordCount * 0.75; // 75% of target minimum
+      const maxRetries = 2;
+      let retryCount = 0;
+
+      while (chapter.wordCount < minWordCount && retryCount < maxRetries) {
+        retryCount++;
+        console.log(`⚠️ Chapter ${chapterNumber} word count too low: ${chapter.wordCount} words (target: ${targetWordCount}). Retry ${retryCount}/${maxRetries}`);
+        
+        advancedAI.broadcastToStream(streamId, 'process_update', { 
+          message: `Chapter ${chapterNumber} too short (${chapter.wordCount} words), regenerating to meet ${targetWordCount} word target...` 
+        });
+
+        chapter = await advancedAI.generateChapterAdvanced({
+          chapterNumber,
+          chapterOutline,
+          storyData: stream.storyData,
+          previousChapters: chapters,
+          isRetry: true,
+          previousWordCount: chapter.wordCount,
+          targetWordCount: targetWordCount,
+          onProgress: (message) => {
+            advancedAI.broadcastToStream(streamId, 'process_update', { message });
+          }
+        });
+      }
+
+      if (chapter.wordCount < minWordCount) {
+        console.log(`⚠️ Chapter ${chapterNumber} still under target after ${maxRetries} retries: ${chapter.wordCount} words`);
+        advancedAI.broadcastToStream(streamId, 'process_update', { 
+          message: `Chapter ${chapterNumber} completed at ${chapter.wordCount} words (below target but proceeding)` 
+        });
+      }
+
       chapters.push(chapter);
 
       advancedAI.broadcastToStream(streamId, 'chapter_complete', {
         chapter: chapterNumber,
         title: chapter.title,
         wordCount: chapter.wordCount,
+        targetWordCount: targetWordCount,
+        onTarget: chapter.wordCount >= minWordCount,
         progress: (chapterNumber / totalChapters) * 100
       });
 

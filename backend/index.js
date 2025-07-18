@@ -5,6 +5,9 @@ import rateLimit from 'express-rate-limit';
 import dotenv from 'dotenv';
 
 // Import routes
+import autoGenerateRouter from './routes/autoGenerate.js';
+import generateNovelRouter from './routes/generateNovel.js';
+import streamGenerationRouter from './routes/streamGeneration.js';
 import advancedGenerationRouter from './routes/advancedGeneration.js';
 
 // Load environment variables
@@ -178,11 +181,6 @@ const corsOptions = corsManager.getCORSOptions();
 
 app.use(cors(corsOptions));
 
-// Trust proxy setting for production deployment (Railway, Heroku, etc.)
-if (process.env.NODE_ENV === 'production') {
-  app.set('trust proxy', 1);
-}
-
 // Rate limiting
 const limiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes
@@ -202,6 +200,9 @@ app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
 // API routes
+app.use('/api', autoGenerateRouter);
+app.use('/api', generateNovelRouter);
+app.use('/api', streamGenerationRouter);
 app.use('/api', advancedGenerationRouter);
 
 // Health check endpoint for connection testing

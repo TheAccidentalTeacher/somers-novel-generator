@@ -48,21 +48,10 @@ REQUIREMENTS:
 1. Create exactly ${chapters} chapter outlines
 2. Each chapter should be substantial enough for ${targetChapterLength} words
 3. Ensure proper story pacing and structure for ${fictionLength}
-4. Include character development arcs WITH SETBACKS AND REGRESSION
-5. Build tension and conflicts appropriately - let conflicts LINGER across chapters
+4. Include character development arcs
+5. Build tension and conflicts appropriately
 6. Follow genre conventions for ${genre}
 7. Each chapter should have clear objectives and emotional beats
-8. AVOID AI TELLTALES: Allow for messiness, unresolved tensions, and imperfect character growth
-9. Include moments that don't serve the theme - details that just make the world feel real
-10. Let antagonists score meaningful victories, not just temporary setbacks
-
-HUMAN AUTHENTICITY GUIDELINES:
-- Character growth is NOT linear - include backsliding and old patterns resurfacing
-- Conflicts between characters should simmer and flare up unexpectedly
-- Include sensory details that ground the reader (smells, textures, specific sounds)
-- Add "useless" worldbuilding details that don't advance plot but add richness
-- Dialogue should be imperfect - interruptions, trailing off, misunderstandings
-- Vary pacing - some chapters rush with action, others linger on quiet moments
 
 OUTPUT FORMAT:
 Return a JSON array with this exact structure:
@@ -77,7 +66,7 @@ Be creative, engaging, and ensure each chapter builds toward a satisfying conclu
 
     try {
       const response = await this.openai.chat.completions.create({
-        model: 'gpt-4o-2024-08-06', // Use latest GPT-4o model
+        model: 'gpt-4o', // Use GPT-4 for best logical reasoning
         messages: [{ role: 'user', content: outlinePrompt }],
         max_tokens: 4000,
         temperature: 0.3, // Lower temperature for more structured outline
@@ -115,16 +104,21 @@ Be creative, engaging, and ensure each chapter builds toward a satisfying conclu
       chapterOutline,
       storyData,
       previousChapters = [],
-      onProgress
+      onProgress,
+      isRetry = false,
+      previousWordCount = null,
+      targetWordCount = null
     } = params;
 
-    const { title, genre, subgenre, genreInstructions, synopsis, targetChapterLength, chapterVariance = 300 } = storyData;
+    const { title, genre, subgenre, genreInstructions, synopsis, targetChapterLength, chapterVariance } = storyData;
     
-    // Calculate target word range with proper variance
-    const minWords = Math.max(500, targetChapterLength - chapterVariance);
-    const maxWords = targetChapterLength + chapterVariance;
-
-    console.log(`🎯 Chapter ${chapterNumber} word target: ${minWords}-${maxWords} words (target: ${targetChapterLength})`);
+    // Use provided target or default to story settings
+    const actualTargetLength = targetWordCount || targetChapterLength;
+    const actualVariance = chapterVariance || Math.floor(actualTargetLength * 0.15); // 15% variance default
+    
+    // Calculate target word range with stricter enforcement for retries
+    const minWords = isRetry ? actualTargetLength * 0.90 : actualTargetLength - actualVariance; // 90% minimum on retry
+    const maxWords = actualTargetLength + actualVariance;
 
     // Create context from previous chapters (summarize if too long)
     let previousContext = '';
@@ -153,6 +147,19 @@ Be creative, engaging, and ensure each chapter builds toward a satisfying conclu
 
     if (onProgress) onProgress(`Planning Chapter ${chapterNumber}: ${chapterOutline.title}`);
 
+    // Build retry context if this is a retry attempt
+    let retryInstructions = '';
+    if (isRetry && previousWordCount) {
+      retryInstructions = `
+
+⚠️ RETRY NOTICE: The previous attempt produced only ${previousWordCount} words, which was too short.
+CRITICAL: This chapter MUST be at least ${minWords} words. Aim for exactly ${actualTargetLength} words.
+- Expand scenes with more detail and dialogue
+- Add more character development and internal thoughts
+- Include richer descriptions and world-building
+- Ensure complete story beats are fully developed`;
+    }
+
     const chapterPrompt = `You are a master novelist writing Chapter ${chapterNumber} of "${title}".
 
 STORY OVERVIEW:
@@ -165,8 +172,8 @@ ${genreInstructions}
 CHAPTER REQUIREMENTS:
 - Title: ${chapterOutline.title}
 - Planned Content: ${chapterOutline.summary}
-- Target Length: ${minWords}-${maxWords} words
-- This is Chapter ${chapterNumber} of the novel
+- CRITICAL WORD COUNT TARGET: ${actualTargetLength} words (minimum: ${minWords}, maximum: ${maxWords})
+- This is Chapter ${chapterNumber} of the novel${retryInstructions}
 
 ${previousContext ? `STORY CONTEXT (Previous Chapters):\n${previousContext}\n\n` : ''}
 
@@ -176,55 +183,41 @@ WRITING INSTRUCTIONS:
 3. Show don't tell - use vivid scenes and dialogue
 4. Follow ${genre} genre conventions
 5. Ensure proper pacing and emotional beats
-6. CRITICAL: This chapter MUST be ${targetChapterLength} words (±${chapterVariance}). Write ${minWords}-${maxWords} words.
+6. CRITICAL: Target exactly ${actualTargetLength} words - this is very important!
 7. End with appropriate tension/resolution for chapter position
 8. Use rich, immersive prose appropriate for the genre
-9. DO NOT write short chapters - reach the target word count with detailed scenes, dialogue, and descriptions
+9. If you're under the word count, expand with:
+   - More detailed scene descriptions
+   - Additional dialogue and character interactions
+   - Internal character thoughts and emotions
+   - Richer world-building details
 
-ADVANCED WRITING TECHNIQUES FOR AUTHENTICITY:
-- VARY SENTENCE RHYTHM: Use fragments during action/emotion ("Ropes. Tight. Can't breathe.")
-- ADD SENSORY GRIT: Include specific smells, textures, sounds that ground the reader
-- LET CONFLICTS LINGER: Don't resolve everything neatly within the chapter
-- INCLUDE "USELESS" DETAILS: Add texture with details that exist just to make the world feel real
-- SHOW CHARACTER BACKSLIDING: Characters can revert to old patterns after growth
-- ALLOW AMBIGUOUS MOMENTS: Not everything needs to teach a clear lesson
-- MAKE DIALOGUE MESSY: People interrupt, trail off, speak imperfectly
-- CREATE UNEVEN PACING: Some moments rush, others linger naturally
+${isRetry ? 'REMINDER: This is a retry - the chapter MUST meet the word count requirement!' : ''}
 
-WORD COUNT REQUIREMENT: Write exactly ${targetChapterLength} words. This is essential for the overall novel structure.
-
-Write the complete chapter now. Prioritize emotional authenticity and human messiness over perfect prose. Do not include chapter headers or numbering - just the prose content.`;
+Write the complete chapter now. Do not include chapter headers or numbering - just the prose content.`;
 
     try {
       if (onProgress) onProgress(`Writing Chapter ${chapterNumber}: ${chapterOutline.title}`);
 
       const response = await this.openai.chat.completions.create({
-        model: 'gpt-4o-2024-08-06', // Use latest GPT-4o model
+        model: 'gpt-4o', // Use GPT-4 for best creative writing
         messages: [{ role: 'user', content: chapterPrompt }],
-        max_tokens: Math.min(16000, Math.ceil(maxWords * 1.8)), // Increased token allocation (GPT-4 tokens ≈ 0.75 words)
-        temperature: 0.8, // Higher creativity for writing
+        max_tokens: Math.min(4000, Math.ceil(maxWords * 1.3)), // Increased token allocation for longer content
+        temperature: isRetry ? 0.7 : 0.8, // Slightly lower temperature on retry for more focused output
       });
 
       const content = response.choices[0].message.content.trim();
       const wordCount = content.split(/\s+/).length;
 
-      console.log(`📝 Chapter ${chapterNumber} generated: ${wordCount} words (target: ${targetChapterLength})`);
+      // Log word count results for monitoring
+      if (isRetry) {
+        console.log(`🔄 Chapter ${chapterNumber} retry result: ${wordCount} words (target: ${actualTargetLength}, previous: ${previousWordCount})`);
+      } else {
+        console.log(`📝 Chapter ${chapterNumber} first attempt: ${wordCount} words (target: ${actualTargetLength})`);
+      }
 
-      // Analyze chapter for human authenticity markers
-      const fragmentCount = (content.match(/\.\s*[A-Z][^.]{1,15}\./g) || []).length;
-      const dialogueLines = (content.match(/["'`][^"'`]*["'`]/g) || []).length;
-      const sensoryWords = (content.match(/\b(smell|stench|aroma|texture|rough|smooth|sound|echo|taste|bitter|sweet)\w*\b/gi) || []).length;
-      
-      console.log(`📊 Chapter ${chapterNumber} authenticity analysis:`, {
-        fragments: fragmentCount,
-        dialogueLines: dialogueLines,
-        sensoryWords: sensoryWords,
-        avgSentenceLength: Math.round(wordCount / (content.split('.').length - 1))
-      });
-
-      // Log if significantly off target
-      if (wordCount < minWords || wordCount > maxWords) {
-        console.warn(`⚠️  Chapter ${chapterNumber} word count off target: ${wordCount} words (expected: ${minWords}-${maxWords})`);
+      if (wordCount < minWords) {
+        console.log(`⚠️ Chapter ${chapterNumber} word count off target: ${wordCount} words (expected: ${minWords}-${maxWords})`);
       }
 
       return {
@@ -232,7 +225,8 @@ Write the complete chapter now. Prioritize emotional authenticity and human mess
         content: content,
         wordCount: wordCount,
         summary: chapterOutline.summary,
-        number: chapterNumber
+        number: chapterNumber,
+        targetMet: wordCount >= minWords
       };
     } catch (error) {
       console.error(`Error generating chapter ${chapterNumber}:`, error);
@@ -317,7 +311,7 @@ Write the complete chapter now. Prioritize emotional authenticity and human mess
           }]
         });
 
-        const chapter = await this.generateChapterAdvanced({
+        let chapter = await this.generateChapterAdvanced({
           chapterNumber,
           chapterOutline,
           storyData: job.storyData,
@@ -326,6 +320,50 @@ Write the complete chapter now. Prioritize emotional authenticity and human mess
             this.updateJob(jobId, { currentProcess: message });
           }
         });
+
+        // Check if chapter meets word count requirements and retry if needed
+        const targetWordCount = job.storyData.targetChapterLength || 1500;
+        const minWordCount = targetWordCount * 0.75; // 75% of target minimum
+        const maxRetries = 2;
+        let retryCount = 0;
+
+        while (chapter.wordCount < minWordCount && retryCount < maxRetries) {
+          retryCount++;
+          console.log(`⚠️ Chapter ${chapterNumber} word count too low: ${chapter.wordCount} words (target: ${targetWordCount}). Retry ${retryCount}/${maxRetries}`);
+          
+          this.updateJob(jobId, {
+            currentProcess: `Chapter ${chapterNumber} too short (${chapter.wordCount} words), regenerating to meet ${targetWordCount} word target...`,
+            logs: [...this.getJob(jobId).logs, { 
+              message: `Chapter ${chapterNumber} retry ${retryCount}/${maxRetries} - ${chapter.wordCount} words too short`, 
+              type: 'warning', 
+              timestamp: new Date() 
+            }]
+          });
+
+          chapter = await this.generateChapterAdvanced({
+            chapterNumber,
+            chapterOutline,
+            storyData: job.storyData,
+            previousChapters: chapters,
+            isRetry: true,
+            previousWordCount: chapter.wordCount,
+            targetWordCount: targetWordCount,
+            onProgress: (message) => {
+              this.updateJob(jobId, { currentProcess: message });
+            }
+          });
+        }
+
+        if (chapter.wordCount < minWordCount) {
+          console.log(`⚠️ Chapter ${chapterNumber} still under target after ${maxRetries} retries: ${chapter.wordCount} words`);
+          this.updateJob(jobId, {
+            logs: [...this.getJob(jobId).logs, { 
+              message: `Chapter ${chapterNumber} completed at ${chapter.wordCount} words (below target but proceeding)`, 
+              type: 'warning', 
+              timestamp: new Date() 
+            }]
+          });
+        }
 
         chapters.push(chapter);
 
@@ -423,41 +461,15 @@ Write the complete chapter now. Prioritize emotional authenticity and human mess
   broadcastToStream(streamId, event, data) {
     const stream = this.getStream(streamId);
     if (stream) {
-      const message = `data: ${JSON.stringify({ 
-        type: event, 
-        timestamp: Date.now(),
-        streamId,
-        ...data 
-      })}\n\n`;
-      
-      // Keep track of failed clients to remove them
-      const failedClients = new Set();
-      
+      const message = `data: ${JSON.stringify({ type: event, ...data })}\n\n`;
       stream.clients.forEach(client => {
         try {
-          // Check if the response is still writable
-          if (client.writable && !client.destroyed) {
-            client.write(message);
-            console.log(`📡 Broadcasted ${event} to stream ${streamId}`);
-          } else {
-            console.log(`📡 Client no longer writable for stream ${streamId}, removing`);
-            failedClients.add(client);
-          }
+          client.write(message);
         } catch (error) {
-          console.error(`📡 Error writing to stream client ${streamId}:`, error.message);
-          console.error(`📡 Error type: ${error.name}, Code: ${error.code}`);
-          failedClients.add(client);
+          console.error('Error writing to stream client:', error);
+          stream.clients.delete(client);
         }
       });
-      
-      // Remove failed clients
-      failedClients.forEach(client => {
-        stream.clients.delete(client);
-      });
-      
-      console.log(`📡 Stream ${streamId} has ${stream.clients.size} active clients after broadcast`);
-    } else {
-      console.error(`📡 Cannot broadcast to stream ${streamId}: stream not found`);
     }
   }
 }

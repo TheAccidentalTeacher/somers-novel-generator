@@ -49,8 +49,7 @@ class APIService {
       headers = {},
       timeout = this.config.timeout,
       retryAttempts = this.config.retryAttempts,
-      retryDelay = this.config.retryDelay,
-      signal = null // External abort signal
+      retryDelay = this.config.retryDelay
     } = options;
 
     // Prepare request configuration
@@ -79,18 +78,11 @@ class APIService {
       try {
         console.log(`🚀 API Request [Attempt ${attempt + 1}]: ${method} ${url}`);
         
-        // Create abort controller for timeout, but respect external signal
-        if (signal) {
-          // If external signal is already aborted, don't even start the request
-          if (signal.aborted) {
-            throw new DOMException('Request was aborted', 'AbortError');
-          }
-          requestConfig.signal = signal;
-        } else {
-          const controller = new AbortController();
-          timeoutId = setTimeout(() => controller.abort(), timeout);
-          requestConfig.signal = controller.signal;
-        }
+        // Create abort controller for timeout
+        const controller = new AbortController();
+        timeoutId = setTimeout(() => controller.abort(), timeout);
+        
+        requestConfig.signal = controller.signal;
 
         const response = await fetch(url, requestConfig);
         clearTimeout(timeoutId);
@@ -122,8 +114,8 @@ class APIService {
       } catch (error) {
         if (timeoutId) clearTimeout(timeoutId);
         
-        // Don't retry on abort errors, client errors (4xx) or final attempt
-        if (error.name === 'AbortError' || attempt === retryAttempts || (error.status && error.status >= 400 && error.status < 500)) {
+        // Don't retry on client errors (4xx) or final attempt
+        if (attempt === retryAttempts || (error.status && error.status >= 400 && error.status < 500)) {
           console.error(`❌ API Error [Final]: ${method} ${endpoint}`, error);
           throw error;
         }
@@ -190,11 +182,10 @@ class APIService {
   // NOVEL GENERATION METHODS
   // =====================================================================
 
-  async createOutline(storyData, signal = null) {
+  async createOutline(storyData) {
     return this.makeRequest('/createOutline', {
       method: 'POST',
-      body: storyData,
-      signal: signal
+      body: storyData
     });
   }
 

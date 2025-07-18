@@ -1,8 +1,6 @@
-import React, { useState, useEffect, useRef } from 'react';
+simport React, { useState, useEffect, useRef } from 'react';
 import LoadingSpinner from './LoadingSpinner';
 import apiService from '../services/apiService.js';
-import { Document, Packer, Paragraph, TextRun, HeadingLevel, AlignmentType } from 'docx';
-import { saveAs } from 'file-saver';
 import './AutoGenerate.css';
 
 // Advanced Novel Generator v2.0 - Updated 2025-07-14
@@ -33,7 +31,6 @@ const AutoGenerate = ({ conflictData, apiConfig, onSuccess, onError, onNotificat
   const [generationPhase, setGenerationPhase] = useState('setup'); // 'setup', 'planning', 'outline', 'generating'
   const [outline, setOutline] = useState([]);
   const [currentProcess, setCurrentProcess] = useState('');
-  const [isCreatingOutline, setIsCreatingOutline] = useState(false);
   
   const [generationMode, setGenerationMode] = useState('batch'); // 'batch' or 'stream'
   
@@ -48,151 +45,12 @@ const AutoGenerate = ({ conflictData, apiConfig, onSuccess, onError, onNotificat
     generateExtras: true
   });
 
-  // Writing Quality Enhancement settings
-  const [qualitySettings, setQualitySettings] = useState({
-    // Reduce Repetitive Theological Explanations
-    varyTheologicalExplanations: true,
-    showDontTellTheology: true,
-    
-    // Complex Character Arcs
-    includeSetbacks: true,
-    showInternalConflict: true,
-    allowBacksliding: true,
-    
-    // Reduce Perfect Symmetry
-    allowUnevenPacing: true,
-    varyCharacterFocus: true,
-    
-    // Dialogue Variation
-    uniqueVoices: true,
-    characterSpecificSpeech: true,
-    
-    // Sensory Details
-    enhancedSensoryDetails: true,
-    showEmotionsPhysically: true,
-    
-    // Moral Ambiguity
-    includeMoralComplexity: true,
-    competingValues: true,
-    
-    // Narrative Timing
-    imperfectTiming: true,
-    allowSelfDiscovery: true,
-    
-    // Sentence Variety
-    varySentenceStructure: true,
-    dramaticPacing: true,
-    
-    // Unexpected Elements
-    includeSurprises: true,
-    organicPlotTwists: true,
-    
-    // Antagonist Depth
-    complexAntagonist: true,
-    sympatheticVillain: true,
-    
-    // NEW: Advanced Anti-AI Pattern Settings
-    // Based on critique feedback for more human-like writing
-    
-    // Character Arc Differentiation
-    asymmetricalCharacterArcs: true, // Characters follow different patterns, not identical arcs
-    genuineCharacterConflict: true, // Characters disagree meaningfully without immediate resolution
-    persistentCharacterFlaws: true, // Flaws don't disappear after single revelation moments
-    
-    // Narrative Asymmetry
-    asymmetricalThematicFocus: true, // Some themes get more/less attention than others
-    unEvenChapterTreatment: true, // Not all story elements receive identical page time
-    mysteriesRemainUnsolved: true, // Some questions stay partially answered
-    
-    // Authentic Imperfection
-    messyResolutions: true, // Conflicts have lasting consequences, incomplete solutions
-    uselessButLivingDetails: true, // Include details that don't serve plot but add authenticity
-    antiClimacticMoments: true, // Some buildup leads to mundane rather than dramatic outcomes
-    
-    // Writing Style Variation
-    chapterVoiceVariation: true, // Different chapters have slightly different writing styles
-    toneInconsistency: true, // Allow natural variation in tone throughout story
-    formalityFluctuation: true, // Vary between formal and casual language naturally
-    
-    // Theological Authenticity
-    theologicalAmbiguity: true, // Allow mystery and unanswered questions in faith elements
-    competingTheologicalViews: true, // Characters may have different theological perspectives
-    faithStrugglesWithoutResolution: true, // Some spiritual struggles continue without neat answers
-    
-    // Realistic Pacing
-    boringButNecessaryScenes: true, // Include mundane moments that feel real
-    unevenPlotDistribution: true, // Some chapters more eventful than others
-    antiClimacticChapterEndings: true, // Not every chapter ends dramatically
-    
-    // Human-like Inconsistencies
-    characterMoodVariation: true, // Characters act differently in different moods/contexts
-    writerForgetsMinorDetails: true, // Small inconsistencies that feel human
-    naturalDigressions: true, // Allow story to wander slightly from main plot
-    
-    // ITERATION 3 CRITIQUE RESPONSES - Breaking AI Patterns Identified in Analysis
-    
-    // Grounded Character Motivation
-    concreteEmotionalStakes: true, // Characters need tangible, relatable motivations beyond abstract concepts
-    personalDrivingForces: true, // Give characters specific goals that drive plot (missing family, career ambitions, etc.)
-    characterSpecificBackgrounds: true, // Root character traits in their professions, experiences, and personal history
-    
-    // Breaking Episodic Structure
-    breakTheFormula: true, // Avoid predictable Travel->Arrive->Learn->Trial->Reflect pattern
-    overlappingChallenges: true, // Don't let characters fully process one challenge before the next begins
-    interruptedReflection: true, // Let trials interrupt moments of contemplation for more realistic pacing
-    onTheRoadLearning: true, // Some lessons learned during travel, not just at destinations
-    combineRedundantChapters: true, // Merge reflection chapters with action chapters to maintain momentum
-    
-    // Deepening Conflict and Stakes
-    tangibleAntagonistGoals: true, // Villains need concrete, achievable objectives beyond abstract philosophies
-    realWorldConsequences: true, // Show physical/emotional impact of conflicts, not just intellectual debates
-    heroesCanFail: true, // Allow protagonists to make wrong choices and face real consequences
-    misinterpretedGuidance: true, // Characters sometimes misunderstand advice and make mistakes
-    backfiredSolutions: true, // Well-intentioned actions sometimes make situations worse
-    
-    // Prose Refinement - Eliminating AI-isms
-    avoidCommonAIMetaphors: true, // Replace "tapestry of," "symphony of," "mosaic of," "testament to"
-    uniqueSensoryDescriptions: true, // Use specific, unusual sensory details instead of generic metaphors
-    embraceImperfection: true, // Use sentence fragments, run-ons, interruptions, trailing dialogue
-    grammaticalVariation: true, // Mix perfect grammar with realistic speech patterns and incomplete thoughts
-    organicLanguageFlow: true, // Let characters speak with natural hesitations, repetitions, and verbal tics
-    
-    // Character Agency and Independence
-    protagonistDrivenDiscovery: true, // Main characters reach conclusions through observation and deduction
-    reduceMentorPresence: true, // Wise characters provide less direct guidance, more indirect hints
-    charactersSolveProblems: true, // Protagonists find solutions using their own skills and knowledge
-    internalWisdomGrowth: true, // Characters develop understanding from within rather than external teaching
-    allowWrongConclusions: true, // Characters sometimes misinterpret situations and learn from mistakes
-    
-    // Natural Dialogue Improvements  
-    colloquialSpeech: true, // Characters use region-appropriate slang, contractions, informal language
-    incompleteThoughts: true, // Dialogue includes half-finished sentences, interruptions, overlapping speech
-    characterSpecificVocabulary: true, // Each character has unique word choices based on background/education
-    conversationalMomentum: true, // Dialogue flows with natural rhythm, not perfect turn-taking
-    unequivalentResponses: true, // Characters don't always directly answer questions or address points made
-    
-    // CONFLICT STRUCTURE ENHANCEMENT - Smart Genre-Based Conflict Management
-    
-    // Conflict Intensity Controls (High-level user controls)
-    conflictIntensity: 'moderate', // 'low', 'moderate', 'high' - overall story tension level
-    paceVariation: true, // Allow natural pacing variations with quiet and intense moments
-    allowQuietMoments: true, // Include lower-conflict scenes for character development and pacing
-    conflictLayering: true, // Use multiple conflict types simultaneously but balanced
-    naturalConflictFlow: true, // Conflicts arise organically from character goals rather than forced drama
-  });
-
   // Comprehensive genre mapping system for LLM instructions
   const genreCategories = {
     mystery: {
       name: 'Mystery',
       icon: '🔍',
       description: 'Suspenseful stories focused on solving crimes or puzzles',
-      // Conflict emphasis for smart defaults
-      conflictEmphasis: {
-        primary: 'person_vs_unknown', // 60% - The central mystery/puzzle
-        secondary: 'person_vs_person', // 30% - Antagonist/suspect conflicts
-        tertiary: 'person_vs_self' // 10% - Detective's internal struggles
-      },
       subgenres: {
         cozy: {
           name: 'Cozy Mystery',
@@ -232,12 +90,6 @@ const AutoGenerate = ({ conflictData, apiConfig, onSuccess, onError, onNotificat
       name: 'Christian Fiction',
       icon: '✝️',
       description: 'Faith-based stories with Christian themes and values',
-      // Conflict emphasis for smart defaults
-      conflictEmphasis: {
-        primary: 'person_vs_self', // 50% - Internal spiritual struggles and growth
-        secondary: 'person_vs_supernatural', // 30% - Spiritual warfare, divine calling
-        tertiary: 'person_vs_society' // 20% - Faith vs. secular world conflicts
-      },
       subgenres: {
         contemporary: {
           name: 'Contemporary Christian',
@@ -277,12 +129,6 @@ const AutoGenerate = ({ conflictData, apiConfig, onSuccess, onError, onNotificat
       name: 'Romance',
       icon: '💕',
       description: 'Love stories with romantic relationships as central plot',
-      // Conflict emphasis for smart defaults
-      conflictEmphasis: {
-        primary: 'person_vs_person', // 50% - Relationship obstacles between partners
-        secondary: 'person_vs_self', // 40% - Internal barriers to love and commitment
-        tertiary: 'person_vs_society' // 10% - External forces opposing the relationship
-      },
       subgenres: {
         contemporary: {
           name: 'Contemporary Romance',
@@ -322,12 +168,6 @@ const AutoGenerate = ({ conflictData, apiConfig, onSuccess, onError, onNotificat
       name: 'Fantasy',
       icon: '🐉',
       description: 'Stories with magical or supernatural elements',
-      // Conflict emphasis for smart defaults
-      conflictEmphasis: {
-        primary: 'person_vs_supernatural', // 60% - Magical forces, creatures, dark powers
-        secondary: 'person_vs_person', // 30% - Villain/antagonist conflicts
-        tertiary: 'person_vs_self' // 10% - Character growth and identity
-      },
       subgenres: {
         epic: {
           name: 'Epic Fantasy',
@@ -367,12 +207,6 @@ const AutoGenerate = ({ conflictData, apiConfig, onSuccess, onError, onNotificat
       name: 'Science Fiction',
       icon: '🚀',
       description: 'Stories based on scientific concepts and future technology',
-      // Conflict emphasis for smart defaults
-      conflictEmphasis: {
-        primary: 'person_vs_technology', // 50% - Technology vs. humanity themes
-        secondary: 'person_vs_society', // 30% - Dystopian systems, corporate control
-        tertiary: 'person_vs_self' // 20% - Identity and humanity questions
-      },
       subgenres: {
         space_opera: {
           name: 'Space Opera',
@@ -412,12 +246,6 @@ const AutoGenerate = ({ conflictData, apiConfig, onSuccess, onError, onNotificat
       name: 'Thriller',
       icon: '⚡',
       description: 'Fast-paced stories designed to create suspense and excitement',
-      // Conflict emphasis for smart defaults
-      conflictEmphasis: {
-        primary: 'person_vs_person', // 60% - Protagonist vs. antagonist conflicts
-        secondary: 'person_vs_time', // 25% - Deadline pressure and urgency
-        tertiary: 'person_vs_society' // 15% - Conspiracies and corrupt systems
-      },
       subgenres: {
         action: {
           name: 'Action Thriller',
@@ -543,24 +371,11 @@ const AutoGenerate = ({ conflictData, apiConfig, onSuccess, onError, onNotificat
 
   // Calculate chapters when word count or target length changes
   useEffect(() => {
-    if (storySetup.wordCount && storySetup.targetChapterLength && storySetup.wordCount > 0 && storySetup.targetChapterLength > 0) {
+    if (storySetup.wordCount && storySetup.targetChapterLength) {
       const calculated = Math.round(storySetup.wordCount / storySetup.targetChapterLength);
-      setCalculatedChapters(Math.max(1, calculated)); // Ensure at least 1 chapter
-    } else {
-      setCalculatedChapters(1); // Default to 1 chapter if invalid inputs
+      setCalculatedChapters(calculated);
     }
   }, [storySetup.wordCount, storySetup.targetChapterLength]);
-
-  // Generate automatic title based on timestamp and genre
-  const generateAutoTitle = (genre, subgenre) => {
-    const timestamp = new Date();
-    const dateStr = timestamp.toISOString().split('T')[0]; // YYYY-MM-DD
-    const timeStr = timestamp.toTimeString().split(' ')[0].replace(/:/g, ''); // HHMMSS
-    const genreName = genreCategories[genre]?.name || 'Novel';
-    const subgenreName = genreCategories[genre]?.subgenres[subgenre]?.name || '';
-    
-    return `${genreName}_${subgenreName ? subgenreName + '_' : ''}${dateStr}_${timeStr}`.replace(/\s+/g, '_');
-  };
 
   const addLog = (message, type = 'info') => {
     const timestamp = new Date().toLocaleTimeString();
@@ -570,42 +385,16 @@ const AutoGenerate = ({ conflictData, apiConfig, onSuccess, onError, onNotificat
   const startGeneration = async () => {
     // If we're in setup phase, start planning
     if (generationPhase === 'setup') {
-      // Only start if we're not already creating an outline
-      if (isCreatingOutline) {
-        addLog('Outline creation already in progress, please wait...', 'warning');
-        return;
-      }
       setGenerationPhase('planning');
       await createOutline();
       return;
     }
 
-    // If we're in planning phase and outline is not ready, wait for it
-    if (generationPhase === 'planning' && outline.length === 0) {
-      if (isCreatingOutline) {
-        addLog('Outline creation in progress, please wait...', 'info');
-      } else {
-        addLog('Waiting for outline creation to complete...', 'info');
-      }
-      return;
-    }
-
-    // If we're in planning phase but outline is ready, move to outline review
-    if (generationPhase === 'planning' && outline.length > 0) {
-      setGenerationPhase('outline');
-      addLog('Outline ready for review', 'success');
-      return;
-    }
-
     // Use either conflictData or storySetup
-    const selectedGenre = genreCategories[storySetup.genre];
-    const selectedSubgenre = selectedGenre?.subgenres[storySetup.subgenre];
-    const conflictEmphasis = selectedGenre?.conflictEmphasis || {};
-    
     const storyData = conflictData || {
       title: storySetup.title,
       genre: `${storySetup.genre}_${storySetup.subgenre}`,
-      genreInstructions: selectedSubgenre?.instructions || '',
+      genreInstructions: genreCategories[storySetup.genre]?.subgenres[storySetup.subgenre]?.instructions || '',
       fictionLength: storySetup.fictionLength,
       chapters: calculatedChapters,
       wordCount: storySetup.wordCount,
@@ -613,26 +402,6 @@ const AutoGenerate = ({ conflictData, apiConfig, onSuccess, onError, onNotificat
       chapterVariance: storySetup.chapterVariance,
       synopsis: storySetup.synopsis,
       outline: outline,
-      
-      // CONFLICT STRUCTURE INTEGRATION - Smart Genre-Based Defaults
-      conflictStructure: {
-        primaryConflicts: Object.entries(conflictEmphasis)
-          .filter(([type, weight]) => weight >= 50)
-          .map(([type, weight]) => ({ type, weight, prominence: 'primary' })),
-        secondaryConflicts: Object.entries(conflictEmphasis)
-          .filter(([type, weight]) => weight >= 25 && weight < 50)
-          .map(([type, weight]) => ({ type, weight, prominence: 'secondary' })),
-        tertiaryConflicts: Object.entries(conflictEmphasis)
-          .filter(([type, weight]) => weight > 0 && weight < 25)
-          .map(([type, weight]) => ({ type, weight, prominence: 'tertiary' })),
-        
-        // Quality settings for conflict management
-        conflictIntensity: qualitySettings.conflictIntensity,
-        allowQuietMoments: qualitySettings.allowQuietMoments,
-        naturalConflictFlow: qualitySettings.naturalConflictFlow,
-        conflictLayering: qualitySettings.conflictLayering
-      },
-      
       // Add minimal structure for API compatibility
       themes: { primary: 'Character growth and compelling narrative' },
       characters: {
@@ -662,7 +431,6 @@ const AutoGenerate = ({ conflictData, apiConfig, onSuccess, onError, onNotificat
       const requestData = {
         storyData: storyData,
         preferences,
-        qualitySettings, // Include all the enhanced writing quality settings
         generationMode, // 'batch' or 'stream'
         useAdvancedIteration: true, // Enable the sophisticated AI process
         timestamp: new Date().toISOString()
@@ -700,8 +468,6 @@ const AutoGenerate = ({ conflictData, apiConfig, onSuccess, onError, onNotificat
         // Handle streaming mode
         setJobId(data.streamId);
         addLog(`Advanced streaming generation started with ID: ${data.streamId}`, 'success');
-        onNotification('Starting intelligent generation...', 'info');
-        setCurrentProcess('Establishing connection...');
         startAdvancedStreaming(data.streamId);
       } else {
         // Handle batch mode
@@ -727,23 +493,8 @@ const AutoGenerate = ({ conflictData, apiConfig, onSuccess, onError, onNotificat
   };
 
   const createOutline = async () => {
-    // Prevent multiple simultaneous outline creation attempts
-    if (isCreatingOutline) {
-      addLog('Outline creation already in progress...', 'warning');
-      return;
-    }
-
-    // Cancel any existing outline creation if somehow still running
-    if (abortControllerRef.current) {
-      abortControllerRef.current.abort();
-    }
-
     try {
-      setIsCreatingOutline(true);
       setCurrentProcess('Analyzing your synopsis with GPT-4...');
-      
-      // Create new abort controller specifically for outline creation
-      abortControllerRef.current = new AbortController();
       
       const outlineData = {
         title: storySetup.title,
@@ -757,55 +508,23 @@ const AutoGenerate = ({ conflictData, apiConfig, onSuccess, onError, onNotificat
         fictionLength: storySetup.fictionLength
       };
 
-      // Debug logging
-      console.log('🔍 Outline Data Debug:');
-      console.log('Synopsis length being sent:', outlineData.synopsis.length);
-      console.log('Synopsis first 200 chars:', outlineData.synopsis.substring(0, 200));
-      console.log('Synopsis last 200 chars:', outlineData.synopsis.substring(outlineData.synopsis.length - 200));
-      console.log('Full outline data structure:', {
-        ...outlineData,
-        synopsis: `[${outlineData.synopsis.length} characters]`
-      });
-
       setCurrentProcess('Creating detailed story structure...');
 
-      // Create a timeout promise to prevent infinite hanging
-      const timeoutPromise = new Promise((_, reject) => {
-        setTimeout(() => reject(new Error('Outline creation timed out after 2 minutes')), 120000);
-      });
+      // Use the API service instead of raw fetch
+      const data = await apiService.createOutline(outlineData);
 
-      // Race between API call and timeout
-      const data = await Promise.race([
-        apiService.createOutline(outlineData, abortControllerRef.current.signal),
-        timeoutPromise
-      ]);
-
-      // Only update state if we haven't been aborted
-      if (!abortControllerRef.current.signal.aborted) {
-        setOutline(data.outline);
-        setCurrentProcess('');
-        setGenerationPhase('outline');
-        addLog('Story outline created successfully', 'success');
-        onNotification('Outline ready for review!', 'success');
-      }
+      setOutline(data.outline);
+      setCurrentProcess('');
+      setGenerationPhase('outline');
+      addLog('Story outline created successfully', 'success');
+      onNotification('Outline ready for review!', 'success');
 
     } catch (error) {
       console.error('Outline creation error:', error);
-      
-      // Don't update error state if this was intentionally aborted
-      if (error.name !== 'AbortError' && !abortControllerRef.current?.signal.aborted) {
-        setError(error);
-        setCurrentProcess('');
-        setGenerationPhase('setup');
-        addLog(`Outline creation failed: ${error.message}`, 'error');
-        onError(error);
-      } else if (error.name === 'AbortError') {
-        addLog('Outline creation was cancelled', 'info');
-        setCurrentProcess('');
-        setGenerationPhase('setup');
-      }
-    } finally {
-      setIsCreatingOutline(false);
+      setError(error);
+      setCurrentProcess('');
+      setGenerationPhase('setup');
+      onError(error);
     }
   };
 
@@ -862,7 +581,12 @@ const AutoGenerate = ({ conflictData, apiConfig, onSuccess, onError, onNotificat
           chaptersCompleted: eventData.chapter,
           currentChapter: eventData.chapter + 1 
         }));
-        addLog(`Chapter ${eventData.chapter} completed (${eventData.wordCount} words)`, 'success');
+        
+        // Enhanced logging with word count status
+        const wordCountStatus = eventData.onTarget ? '✅' : '⚠️';
+        const targetInfo = eventData.targetWordCount ? ` (target: ${eventData.targetWordCount})` : '';
+        addLog(`${wordCountStatus} Chapter ${eventData.chapter} completed: ${eventData.wordCount} words${targetInfo}`, 
+               eventData.onTarget ? 'success' : 'warning');
         break;
         
       case 'complete':
@@ -904,41 +628,16 @@ const AutoGenerate = ({ conflictData, apiConfig, onSuccess, onError, onNotificat
   const startAdvancedStreaming = (streamId) => {
     // Start Server-Sent Events stream for advanced generation
     const streamUrl = `${apiConfig.baseUrl}/advancedStreamGeneration/${streamId}`;
-    console.log(`📡 Starting advanced stream connection to: ${streamUrl}`);
-    
-    let eventSource;
-    let connectionTestPassed = false;
-    let fallbackTimeout;
-
-    try {
-      eventSource = new EventSource(streamUrl);
-    } catch (error) {
-      console.error('Failed to create EventSource:', error);
-      addLog('Stream connection failed, using polling mode...', 'warning');
-      onNotification('Using polling mode (streaming unavailable)', 'warning');
-      setCurrentProcess('Using polling mode...');
-      startAdvancedPolling(streamId);
-      return;
-    }
+    const eventSource = new EventSource(streamUrl);
 
     eventSource.onopen = () => {
       addLog('Advanced streaming connected', 'success');
       onNotification('Intelligent generation started', 'success');
-      setCurrentProcess('Stream connected, starting generation...');
-      console.log(`📡 Advanced stream opened for ${streamId}`);
     };
 
     eventSource.onmessage = (event) => {
       try {
         const eventData = JSON.parse(event.data);
-        
-        // Mark connection as working if we receive any message
-        if (!connectionTestPassed) {
-          connectionTestPassed = true;
-          clearTimeout(fallbackTimeout);
-          console.log(`✅ Advanced stream connection verified for ${streamId}`);
-        }
-        
         handleAdvancedStreamEvent(eventData);
       } catch (error) {
         console.error('Error parsing advanced stream data:', error);
@@ -947,56 +646,17 @@ const AutoGenerate = ({ conflictData, apiConfig, onSuccess, onError, onNotificat
 
     eventSource.onerror = (error) => {
       console.error('Advanced stream error:', error);
-      
-      // If we haven't received any messages yet, fall back to polling
-      if (!connectionTestPassed) {
-        console.log(`📡 Stream failed for ${streamId}, falling back to polling`);
-        eventSource.close();
-        addLog('Stream connection failed (likely HTTP/2 issue), switching to polling mode...', 'warning');
-        onNotification('Switching to polling mode due to connection issue', 'warning');
-        setCurrentProcess('Switching to polling mode...');
-        startAdvancedPolling(streamId);
-      } else {
-        addLog('Stream connection lost, attempting to reconnect...', 'warning');
-        onNotification('Connection lost, falling back to polling', 'warning');
-        setCurrentProcess('Connection lost, falling back to polling...');
-        eventSource.close();
-        // Don't set error immediately, try polling first
-        startAdvancedPolling(streamId);
-      }
+      setError(new Error('Advanced stream connection error'));
+      setIsGenerating(false);
+      eventSource.close();
     };
 
-    // Set up fallback timeout - if no messages received in 8 seconds, switch to polling
-    fallbackTimeout = setTimeout(() => {
-      if (!connectionTestPassed) {
-        console.log(`📡 Stream timeout for ${streamId}, falling back to polling`);
-        if (eventSource) {
-          eventSource.close();
-        }
-        addLog('Stream connection timeout (Railway/HTTP2 issue), switching to polling mode...', 'warning');
-        onNotification('Connection timeout, using polling mode instead', 'warning');
-        setCurrentProcess('Switching to polling mode due to connection timeout...');
-        startAdvancedPolling(streamId);
-      }
-    }, 8000); // Reduced from 10 to 8 seconds for faster fallback
-
     // Store reference for cleanup
-    abortControllerRef.current = { abort: () => {
-      clearTimeout(fallbackTimeout);
-      eventSource.close();
-    }};
+    abortControllerRef.current = { abort: () => eventSource.close() };
   };
 
   const handleAdvancedStreamEvent = (eventData) => {
     switch (eventData.type) {
-      case 'connected':
-        addLog(`Connected to stream: ${eventData.streamId}`, 'info');
-        // Check if fallback polling is suggested
-        if (eventData.fallback?.usePolling) {
-          addLog('Stream fallback available if needed', 'info');
-        }
-        break;
-        
       case 'process_update':
         setCurrentProcess(eventData.message);
         addLog(eventData.message, 'info');
@@ -1020,7 +680,12 @@ const AutoGenerate = ({ conflictData, apiConfig, onSuccess, onError, onNotificat
           chaptersCompleted: eventData.chapter,
           currentChapter: eventData.chapter + 1 
         }));
-        addLog(`Chapter ${eventData.chapter} completed (${eventData.wordCount} words)`, 'success');
+        
+        // Enhanced logging with word count status
+        const wordCountStatus = eventData.onTarget ? '✅' : '⚠️';
+        const targetInfo = eventData.targetWordCount ? ` (target: ${eventData.targetWordCount})` : '';
+        addLog(`${wordCountStatus} Chapter ${eventData.chapter} completed: ${eventData.wordCount} words${targetInfo}`, 
+               eventData.onTarget ? 'success' : 'warning');
         setCurrentProcess(`Chapter ${eventData.chapter} complete. Moving to next chapter...`);
         break;
         
@@ -1049,27 +714,6 @@ const AutoGenerate = ({ conflictData, apiConfig, onSuccess, onError, onNotificat
         setCurrentProcess('');
         addLog(`Generation error: ${eventData.error}`, 'error');
         onError(new Error(eventData.error));
-        break;
-        
-      case 'heartbeat':
-        // Silent heartbeat to keep connection alive
-        // Only log every 10th heartbeat to avoid spam
-        if (!window.heartbeatCount) window.heartbeatCount = 0;
-        window.heartbeatCount++;
-        if (window.heartbeatCount % 10 === 0) {
-          addLog('Connection active ❤️', 'info');
-          setCurrentProcess('Generation in progress...');
-        }
-        break;
-        
-      case 'fallback_required':
-        addLog('Stream requires fallback to polling', 'warning');
-        onNotification('Switching to polling mode', 'warning');
-        setCurrentProcess('Switching to polling mode...');
-        if (abortControllerRef.current) {
-          abortControllerRef.current.abort();
-        }
-        startAdvancedPolling(streamId);
         break;
         
       default:
@@ -1226,132 +870,6 @@ const AutoGenerate = ({ conflictData, apiConfig, onSuccess, onError, onNotificat
     handleDownload(content, filename);
   };
 
-  const downloadAsWord = async () => {
-    if (!result) return;
-
-    try {
-      // Create document content
-      const children = [];
-
-      // Title page
-      children.push(
-        new Paragraph({
-          children: [new TextRun({
-            text: result.title,
-            bold: true,
-            size: 48,
-          })],
-          alignment: AlignmentType.CENTER,
-          spacing: { after: 400 }
-        })
-      );
-
-      children.push(
-        new Paragraph({
-          children: [new TextRun({
-            text: `by ${result.author || 'Anonymous'}`,
-            size: 24,
-          })],
-          alignment: AlignmentType.CENTER,
-          spacing: { after: 800 }
-        })
-      );
-
-      // Description/Synopsis
-      if (result.description) {
-        children.push(
-          new Paragraph({
-            children: [new TextRun({
-              text: result.description,
-              italics: true,
-            })],
-            alignment: AlignmentType.CENTER,
-            spacing: { after: 800 }
-          })
-        );
-      }
-
-      // Page break after title page
-      children.push(
-        new Paragraph({
-          children: [new TextRun({
-            text: "",
-            break: 1
-          })],
-          pageBreakBefore: true
-        })
-      );
-
-      // Chapters
-      if (result.chapters && result.chapters.length > 0) {
-        result.chapters.forEach((chapter, index) => {
-          // Chapter title
-          children.push(
-            new Paragraph({
-              children: [new TextRun({
-                text: `CHAPTER ${index + 1}: ${chapter.title}`,
-                bold: true,
-                size: 32,
-              })],
-              heading: HeadingLevel.HEADING_1,
-              spacing: { before: 400, after: 400 }
-            })
-          );
-
-          // Chapter content - split by paragraphs
-          const paragraphs = chapter.content.split(/\n\s*\n/);
-          paragraphs.forEach(paragraphText => {
-            if (paragraphText.trim()) {
-              children.push(
-                new Paragraph({
-                  children: [new TextRun({
-                    text: paragraphText.trim(),
-                    size: 24,
-                  })],
-                  spacing: { after: 200 }
-                })
-              );
-            }
-          });
-
-          // Add some space between chapters
-          if (index < result.chapters.length - 1) {
-            children.push(
-              new Paragraph({
-                children: [new TextRun({ text: "" })],
-                spacing: { after: 600 }
-              })
-            );
-          }
-        });
-      }
-
-      // Create document
-      const doc = new Document({
-        sections: [{
-          properties: {},
-          children: children
-        }]
-      });
-
-      // Generate and download
-      const blob = await Packer.toBlob(doc);
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = `${result.title.replace(/[^a-z0-9]/gi, '_').toLowerCase()}_novel.docx`;
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
-      URL.revokeObjectURL(url);
-
-      addLog('Novel downloaded as Word document successfully!', 'success');
-    } catch (error) {
-      console.error('Error creating Word document:', error);
-      addLog('Failed to create Word document. Please try again.', 'error');
-    }
-  };
-
   const reset = () => {
     setIsGenerating(false);
     setJobId(null);
@@ -1360,27 +878,12 @@ const AutoGenerate = ({ conflictData, apiConfig, onSuccess, onError, onNotificat
     setResult(null);
     setError(null);
     setLogs([]);
-    setIsCreatingOutline(false);
-    setCurrentProcess('');
-    setGenerationPhase('setup');
-    setOutline([]);
     
     if (intervalRef.current) {
       clearInterval(intervalRef.current);
     }
     if (abortControllerRef.current) {
       abortControllerRef.current.abort();
-    }
-  };
-
-  const cancelOutlineCreation = () => {
-    if (isCreatingOutline && abortControllerRef.current) {
-      abortControllerRef.current.abort();
-      setIsCreatingOutline(false);
-      setCurrentProcess('');
-      setGenerationPhase('setup');
-      addLog('Outline creation cancelled by user', 'warning');
-      onNotification('Outline creation cancelled', 'warning');
     }
   };
 
@@ -1409,14 +912,7 @@ const AutoGenerate = ({ conflictData, apiConfig, onSuccess, onError, onNotificat
             className="btn btn-success btn-large"
             onClick={downloadFullNovel}
           >
-            📥 Download as Text
-          </button>
-          
-          <button 
-            className="btn btn-primary btn-large"
-            onClick={downloadAsWord}
-          >
-            📄 Download as Word
+            📥 Download Complete Novel
           </button>
           
           <button 
@@ -1617,47 +1113,19 @@ const AutoGenerate = ({ conflictData, apiConfig, onSuccess, onError, onNotificat
               {calculatedChapters > 0 && (
                 <div className="setup-section">
                   <h4>📝 Story Synopsis</h4>
-                  <p>Provide a detailed synopsis (up to 10,000 words / 60,000 characters) - the more detail, the better your novel!</p>
+                  <p>Provide a detailed synopsis (up to 10,000 words) - the more detail, the better your novel!</p>
                   
                   <div className="form-group">
                     <textarea
                       className="form-textarea synopsis-input"
-                      rows="15"
-                      maxLength="60000"
+                      rows="12"
+                      maxLength="10000"
                       placeholder="Write your detailed story synopsis here. Include main characters, plot points, themes, setting, conflicts, and how you want the story to develop. The AI will use this as the foundation for your entire novel..."
                       value={storySetup.synopsis}
                       onChange={(e) => setStorySetup(prev => ({ ...prev, synopsis: e.target.value }))}
-                      style={{ 
-                        minHeight: '300px',
-                        resize: 'vertical',
-                        fontFamily: 'monospace',
-                        fontSize: '14px',
-                        lineHeight: '1.5'
-                      }}
                     />
                     <div className="character-count">
-                      {storySetup.synopsis.length.toLocaleString()} / 60,000 characters (~{Math.round(storySetup.synopsis.length / 6)} words)
-                      {storySetup.synopsis.length > 50000 && (
-                        <div style={{ color: 'orange', fontSize: '12px', marginTop: '5px' }}>
-                          ⚠️ Very large synopsis detected. If you experience issues, try breaking it into smaller sections.
-                        </div>
-                      )}
-                    </div>
-                    <div style={{ marginTop: '10px' }}>
-                      <button 
-                        type="button"
-                        className="btn btn-small btn-outline"
-                        onClick={() => {
-                          console.log('🔍 Synopsis Debug Info:');
-                          console.log('Length:', storySetup.synopsis.length);
-                          console.log('Word count estimate:', Math.round(storySetup.synopsis.length / 6));
-                          console.log('First 100 chars:', storySetup.synopsis.substring(0, 100));
-                          console.log('Last 100 chars:', storySetup.synopsis.substring(storySetup.synopsis.length - 100));
-                          alert(`Synopsis Debug:\nLength: ${storySetup.synopsis.length} characters\nWords: ~${Math.round(storySetup.synopsis.length / 6)}\nCheck console for more details`);
-                        }}
-                      >
-                        🔍 Debug Synopsis Length
-                      </button>
+                      {storySetup.synopsis.length.toLocaleString()} / 10,000 characters
                     </div>
                   </div>
                 </div>
@@ -1670,27 +1138,13 @@ const AutoGenerate = ({ conflictData, apiConfig, onSuccess, onError, onNotificat
                   <p>Finally, give your masterpiece a title (you can always change this later):</p>
                   
                   <div className="form-group">
-                    <div className="title-input-group">
-                      <input
-                        type="text"
-                        className="form-input title-input"
-                        placeholder="Enter your novel title..."
-                        value={storySetup.title}
-                        onChange={(e) => setStorySetup(prev => ({ ...prev, title: e.target.value }))}
-                      />
-                      <button
-                        type="button"
-                        className="auto-title-btn"
-                        onClick={() => {
-                          const autoTitle = generateAutoTitle(storySetup.genre, storySetup.subgenre);
-                          setStorySetup(prev => ({ ...prev, title: autoTitle }));
-                        }}
-                        title="Generate automatic title based on genre and timestamp"
-                      >
-                        🎯 Auto
-                      </button>
-                    </div>
-                    <small className="help-text">Click "Auto" to generate a timestamp-based title, or enter your own</small>
+                    <input
+                      type="text"
+                      className="form-input title-input"
+                      placeholder="Enter your novel title..."
+                      value={storySetup.title}
+                      onChange={(e) => setStorySetup(prev => ({ ...prev, title: e.target.value }))}
+                    />
                   </div>
 
                   <div className="generation-options">
@@ -1710,15 +1164,10 @@ const AutoGenerate = ({ conflictData, apiConfig, onSuccess, onError, onNotificat
                   <div className="proceed-actions">
                     <button 
                       className="btn btn-primary btn-large"
-                      onClick={async () => {
-                        if (!isCreatingOutline) {
-                          setGenerationPhase('planning');
-                          await createOutline();
-                        }
-                      }}
-                      disabled={!storySetup.title || storySetup.synopsis.length < 100 || isCreatingOutline}
+                      onClick={() => setGenerationPhase('planning')}
+                      disabled={!storySetup.title || storySetup.synopsis.length < 100}
                     >
-                      {isCreatingOutline ? '🧠 Creating Outline...' : '🧠 Start Planning Phase'}
+                      🧠 Start Planning Phase
                     </button>
                     
                     <div className="planning-info">
@@ -1747,17 +1196,6 @@ const AutoGenerate = ({ conflictData, apiConfig, onSuccess, onError, onNotificat
                   </div>
                 )}
               </div>
-              
-              {isCreatingOutline && (
-                <div style={{ textAlign: 'center', marginTop: '20px' }}>
-                  <button 
-                    className="btn btn-error"
-                    onClick={cancelOutlineCreation}
-                  >
-                    ❌ Cancel Planning
-                  </button>
-                </div>
-              )}
             </div>
           )}
 
