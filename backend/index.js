@@ -12,6 +12,12 @@ dotenv.config();
 const app = express();
 const PORT = process.env.PORT || 3000;
 
+// Railway keep-alive mechanism for long-running processes
+const KEEP_ALIVE_INTERVAL = 30000; // 30 seconds
+setInterval(() => {
+  console.log(`💓 Keep-alive: ${new Date().toISOString()} - Server healthy`);
+}, KEEP_ALIVE_INTERVAL);
+
 // Trust proxy for Railway/production environments (must be before other middleware)
 app.set('trust proxy', true);
 
@@ -193,9 +199,25 @@ app.get('/api/health', (req, res) => {
     success: true,
     message: 'Somers Novel Generator API is running',
     timestamp: new Date().toISOString(),
-    version: '2.0.0'
+    uptime: process.uptime(),
+    environment: process.env.NODE_ENV || 'development',
+    version: '2.0'
   });
 });
+
+// Railway keep-alive self-ping every 5 minutes to prevent container sleep
+if (process.env.NODE_ENV === 'production') {
+  const SELF_PING_INTERVAL = 5 * 60 * 1000; // 5 minutes
+  setInterval(async () => {
+    try {
+      const fetch = (await import('node-fetch')).default;
+      const response = await fetch(`http://localhost:${PORT}/api/health`);
+      console.log(`🏓 Self-ping successful: ${response.status}`);
+    } catch (error) {
+      console.log(`🏓 Self-ping failed: ${error.message}`);
+    }
+  }, SELF_PING_INTERVAL);
+}
 
 // Root endpoint
 app.get('/', (req, res) => {

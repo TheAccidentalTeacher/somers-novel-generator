@@ -289,30 +289,72 @@ Write the complete chapter now. Do not include chapter headers or numbering - ju
       // Create outline if not provided
       let outline = job.storyData.outline;
       if (!outline || outline.length === 0) {
+        console.log(`📋 Creating outline for job ${jobId}...`);
         outline = await this.createOutline(job.storyData);
         this.updateJob(jobId, { 
           currentProcess: 'Outline created, beginning chapter generation...',
-          logs: [...job.logs, { message: 'Story outline created', type: 'success', timestamp: new Date() }]
+          logs: [...this.getJob(jobId).logs, { message: 'Story outline created', type: 'success', timestamp: new Date() }]
         });
+        console.log(`✅ Outline created with ${outline.length} chapters`);
       }
 
+      // Railway container timeout protection - start generation immediately
+      console.log(`🚀 Starting immediate chapter generation for job ${jobId}`);
+      setImmediate(() => {
+        this.generateChaptersWithTimeoutProtection(jobId, outline);
+      });
+
+      // Return immediately to prevent Railway timeout
+      return {
+        jobId: jobId,
+        status: 'running',
+        message: 'Chapter generation started in background'
+      };
+
+    } catch (error) {
+      console.error(`Job ${jobId} failed:`, error);
+      this.updateJob(jobId, {
+        status: 'failed',
+        error: error.message,
+        currentProcess: 'Generation failed',
+        logs: [...this.getJob(jobId).logs, { 
+          message: `Generation failed: ${error.message}`, 
+          type: 'error', 
+          timestamp: new Date() 
+        }]
+      });
+      throw error;
+    }
+  }
+
+  // Generate chapters with timeout protection for Railway
+  async generateChaptersWithTimeoutProtection(jobId, outline) {
+    const job = this.getJob(jobId);
+    if (!job) return;
+
+    try {
       const totalChapters = outline.length;
       const chapters = [];
+      
+      console.log(`📚 Starting generation of ${totalChapters} chapters for job ${jobId}`);
 
       // Generate each chapter iteratively
       for (let i = 0; i < totalChapters; i++) {
         const chapterNumber = i + 1;
         const chapterOutline = outline[i];
 
+        // Update progress frequently to show we're alive
         this.updateJob(jobId, {
           currentChapter: chapterNumber,
-          currentProcess: `Planning Chapter ${chapterNumber}: ${chapterOutline.title}`,
+          currentProcess: `Writing Chapter ${chapterNumber}: ${chapterOutline.title}`,
           logs: [...this.getJob(jobId).logs, { 
             message: `Starting Chapter ${chapterNumber}: ${chapterOutline.title}`, 
             type: 'info', 
             timestamp: new Date() 
           }]
         });
+
+        console.log(`📝 Generating Chapter ${chapterNumber}: ${chapterOutline.title}`);
 
         let chapter = await this.generateChapterAdvanced({
           chapterNumber,
@@ -321,6 +363,7 @@ Write the complete chapter now. Do not include chapter headers or numbering - ju
           previousChapters: chapters,
           onProgress: (message) => {
             this.updateJob(jobId, { currentProcess: message });
+            console.log(`📈 Progress: ${message}`);
           }
         });
 
@@ -366,6 +409,15 @@ Write the complete chapter now. Do not include chapter headers or numbering - ju
               timestamp: new Date() 
             }]
           });
+        } else {
+          console.log(`✅ Chapter ${chapterNumber} completed: ${chapter.wordCount} words`);
+          this.updateJob(jobId, {
+            logs: [...this.getJob(jobId).logs, { 
+              message: `Chapter ${chapterNumber} completed successfully (${chapter.wordCount} words)`, 
+              type: 'success', 
+              timestamp: new Date() 
+            }]
+          });
         }
 
         chapters.push(chapter);
@@ -382,8 +434,8 @@ Write the complete chapter now. Do not include chapter headers or numbering - ju
           }]
         });
 
-        // Small delay to prevent rate limiting
-        await new Promise(resolve => setTimeout(resolve, 1000));
+        // Add delay between chapters to prevent rate limiting and show progress
+        await new Promise(resolve => setTimeout(resolve, 2000));
       }
 
       const totalWords = chapters.reduce((sum, ch) => sum + ch.wordCount, 0);
@@ -408,20 +460,21 @@ Write the complete chapter now. Do not include chapter headers or numbering - ju
         }]
       });
 
+      console.log(`🎉 Job ${jobId} completed successfully! ${chapters.length} chapters, ${totalWords.toLocaleString()} words`);
       return result;
+      
     } catch (error) {
-      console.error(`Job ${jobId} failed:`, error);
+      console.error(`❌ Background generation failed for job ${jobId}:`, error);
       this.updateJob(jobId, {
         status: 'failed',
         error: error.message,
         currentProcess: 'Generation failed',
         logs: [...this.getJob(jobId).logs, { 
-          message: `Generation failed: ${error.message}`, 
+          message: `Background generation failed: ${error.message}`, 
           type: 'error', 
           timestamp: new Date() 
         }]
       });
-      throw error;
     }
   }
 
