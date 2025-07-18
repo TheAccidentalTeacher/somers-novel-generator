@@ -145,18 +145,9 @@ class APIService {
 
   async testConnection() {
     try {
-      // Test connection using a lightweight API endpoint
-      // This is better than a separate health endpoint
-      const response = await this.makeRequest('/createOutline', {
-        method: 'POST',
-        body: {
-          // Minimal test data to verify backend connectivity
-          title: 'Connection Test',
-          genre: 'Test',
-          synopsis: 'This is a connection test synopsis.',
-          wordCount: 1000,
-          chapters: 1
-        }
+      // Test connection using the lightweight health endpoint - NO AI CALLS!
+      const response = await this.makeRequest('/health', {
+        method: 'GET'
       });
 
       return {

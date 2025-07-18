@@ -30,11 +30,77 @@ class AdvancedAIService {
       await mongoClient.connect();
       this.mongoReady = true;
       console.log('✅ MongoDB storage ready for novel generation jobs');
+      
+      // 🚨 CONTAINER RESTART RECOVERY: Check for orphaned jobs
+      await this.recoverOrphanedJobs();
     } catch (error) {
       console.warn('⚠️ MongoDB connection failed, using in-memory storage:', error.message);
       this.mongoReady = false;
       console.log('📝 In-memory job storage initialized as fallback');
     }
+  }
+
+  // 🚨 NEW: Recover jobs that were interrupted by container restarts
+  async recoverOrphanedJobs() {
+    if (!this.mongoReady) return;
+    
+    try {
+      console.log('🔄 CONTAINER RESTART RECOVERY: Checking for orphaned jobs...');
+      
+      // Get all jobs collection
+      const collection = await mongoClient.getJobsCollection();
+      const orphanedJobs = await collection.find({
+        status: { $in: ['running', 'generating'] },
+        startTime: { $lt: new Date(Date.now() - 5 * 60 * 1000) } // Older than 5 minutes
+      }).toArray();
+      
+      console.log(`🔄 Found ${orphanedJobs.length} potentially orphaned jobs`);
+      
+      for (const job of orphanedJobs) {
+        console.log(`🔄 RECOVERING orphaned job: ${job.id}`);
+        console.log(`🔄 Job status: ${job.status}, chapters: ${job.chaptersCompleted}/${job.storyData?.chapters}`);
+        
+        // Resume generation from where it left off
+        this.resumeJobGeneration(job.id, job).catch(error => {
+          console.error(`❌ Failed to resume job ${job.id}:`, error);
+          // Mark as failed if resume fails
+          this.updateJob(job.id, {
+            status: 'failed',
+            error: 'Container restart recovery failed',
+            currentProcess: 'Recovery failed'
+          });
+        });
+      }
+    } catch (error) {
+      console.error('❌ Error recovering orphaned jobs:', error);
+    }
+  }
+
+  // 🚨 NEW: Resume a job that was interrupted by container restart
+  async resumeJobGeneration(jobId, existingJob) {
+    console.log(`🔄 RESUMING JOB: ${jobId} from chapter ${existingJob.chaptersCompleted + 1}`);
+    
+    // Update job to show it's being resumed
+    await this.updateJob(jobId, {
+      status: 'generating',
+      currentProcess: `Resuming from container restart - continuing from chapter ${existingJob.chaptersCompleted + 1}`,
+      logs: [...(existingJob.logs || []), {
+        message: `Container restart detected - resuming generation from chapter ${existingJob.chaptersCompleted + 1}`,
+        type: 'warning',
+        timestamp: new Date()
+      }]
+    });
+
+    // Get the outline (should be stored in job data)
+    let outline = existingJob.storyData?.outline;
+    if (!outline || outline.length === 0) {
+      console.log(`🔄 Creating new outline for resumed job ${jobId}...`);
+      outline = await this.createOutline(existingJob.storyData);
+    }
+
+    // Start generation immediately (no setTimeout needed since we're already in a recovered context)
+    console.log(`🔄 Starting immediate chapter generation for resumed job ${jobId}`);
+    await this.generateChaptersWithTimeoutProtection(jobId, outline);
   }
 
   isConfigured() {
@@ -496,21 +562,32 @@ Write the complete chapter now. Do not include chapter headers or numbering - ju
 
     try {
       const totalChapters = outline.length;
-      const chapters = [];
-      console.log(`📚 Starting generation of ${totalChapters} chapters for job ${jobId}`);
-      // Update job status to indicate background processing started
+      
+      // 🚨 CONTAINER RESTART RECOVERY: Resume from where we left off
+      const existingChapters = job.chapters || [];
+      const startChapterIndex = job.chaptersCompleted || 0;
+      const chapters = [...existingChapters]; // Start with existing chapters
+      
+      console.log(`📚 Starting/resuming generation: ${totalChapters} total chapters, resuming from chapter ${startChapterIndex + 1}`);
+      console.log(`📚 Already completed: ${existingChapters.length} chapters`);
+      
+      // Update job status to indicate background processing started/resumed
       await this.updateJob(jobId, {
         status: 'generating',
-        currentProcess: `Background generation started - ${totalChapters} chapters to generate`,
+        currentProcess: startChapterIndex === 0 ? 
+          `Background generation started - ${totalChapters} chapters to generate` :
+          `Background generation resumed - continuing from chapter ${startChapterIndex + 1} of ${totalChapters}`,
         logs: [...(job.logs || []), { 
-          message: `Background generation started - ${totalChapters} chapters planned`, 
+          message: startChapterIndex === 0 ?
+            `Background generation started - ${totalChapters} chapters planned` :
+            `Background generation resumed from chapter ${startChapterIndex + 1}`, 
           type: 'info', 
           timestamp: new Date() 
         }]
       });
 
-      // Generate each chapter iteratively
-      for (let i = 0; i < totalChapters; i++) {
+      // Generate remaining chapters iteratively
+      for (let i = startChapterIndex; i < totalChapters; i++) {
         const chapterNumber = i + 1;
         const chapterOutline = outline[i];
         console.log(`📝 Starting Chapter ${chapterNumber}: ${chapterOutline.title}`);
@@ -599,9 +676,12 @@ Write the complete chapter now. Do not include chapter headers or numbering - ju
 
           const progress = (chapterNumber / totalChapters) * 100;
           const jobProg = await this.getJob(jobId);
+          
+          // 🚨 CONTAINER RESTART RECOVERY: Store chapters in job for persistence
           await this.updateJob(jobId, {
             progress,
             chaptersCompleted: chapterNumber,
+            chapters: chapters, // 🚨 CRITICAL: Store chapters in MongoDB for recovery
             currentProcess: `Chapter ${chapterNumber} completed (${chapter.wordCount} words) - ${Math.round(progress)}% done`,
             logs: [...(jobProg?.logs || []), { 
               message: `Chapter ${chapterNumber} completed (${chapter.wordCount} words) - ${Math.round(progress)}% done`, 
