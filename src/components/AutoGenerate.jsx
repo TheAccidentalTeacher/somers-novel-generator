@@ -385,8 +385,14 @@ const AutoGenerate = ({ conflictData, apiConfig, onSuccess, onError, onNotificat
   };
 
   const startGeneration = async () => {
+    console.log(`🚀 FRONTEND DEBUG: startGeneration called! Phase: ${generationPhase}`);
+    console.log(`🚀 Story setup:`, storySetup);
+    console.log(`🚀 Conflict data:`, conflictData);
+    console.log(`🚀 Outline length:`, outline.length);
+    
     // If we're in setup phase, start planning
     if (generationPhase === 'setup') {
+      console.log(`🚀 FRONTEND DEBUG: Moving from setup to planning phase`);
       setGenerationPhase('planning');
       await createOutline();
       return;

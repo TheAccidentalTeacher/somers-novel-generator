@@ -18,6 +18,28 @@ setInterval(() => {
   console.log(`💓 Keep-alive: ${new Date().toISOString()} - Server healthy`);
 }, KEEP_ALIVE_INTERVAL);
 
+// 🚀 RAILWAY OPTIMIZATION: Prevent container sleep during generation
+const preventContainerSleep = () => {
+  // Self-ping to keep Railway container active
+  const keepAliveUrl = process.env.RAILWAY_STATIC_URL || `http://localhost:${PORT}`;
+  
+  setInterval(async () => {
+    try {
+      // Only ping if we're in production Railway environment
+      if (process.env.RAILWAY_ENVIRONMENT) {
+        const response = await fetch(`${keepAliveUrl}/api/health`);
+        console.log(`🏃 Railway keep-alive ping: ${response.status}`);
+      }
+    } catch (error) {
+      // Ignore ping errors - they're not critical
+      console.log(`⚠️ Keep-alive ping failed: ${error.message}`);
+    }
+  }, 14 * 60 * 1000); // Ping every 14 minutes (Railway free tier sleeps after 15 min)
+};
+
+// Start keep-alive after a delay to ensure server is ready
+setTimeout(preventContainerSleep, 30000);
+
 // Trust proxy for Railway/production environments (must be before other middleware)
 app.set('trust proxy', true);
 
