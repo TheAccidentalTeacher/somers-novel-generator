@@ -310,21 +310,26 @@ Write the complete chapter now. Do not include chapter headers or numbering - ju
     try {
       if (this.mongoReady) {
         await mongoClient.updateJob(jobId, updates);
+        console.log(`📝 Job ${jobId} updated in MongoDB`);
       } else {
         // Fallback to in-memory storage
         const job = this.jobs.get(jobId);
         if (job) {
           Object.assign(job, updates);
           this.jobs.set(jobId, job);
+          console.log(`📝 Job ${jobId} updated in memory (MongoDB fallback)`);
         }
       }
     } catch (error) {
       console.error('MongoDB updateJob error:', error);
-      // Fallback to memory
+      // Always ensure fallback works
       const job = this.jobs.get(jobId);
       if (job) {
         Object.assign(job, updates);
         this.jobs.set(jobId, job);
+        console.log(`📝 Job ${jobId} updated in memory (MongoDB error fallback)`);
+      } else {
+        console.error(`❌ Job ${jobId} not found in memory fallback!`);
       }
     }
   }
@@ -562,7 +567,44 @@ Write the complete chapter now. Do not include chapter headers or numbering - ju
               timestamp: new Date() 
             }]
           });
-          throw chapterError; // Re-throw to stop generation
+          
+          // Only stop on truly fatal errors, continue for recoverable errors
+          if (chapterError.message.includes('OpenAI API key not configured') || 
+              chapterError.message.includes('rate limit') ||
+              chapterError.message.includes('quota exceeded')) {
+            console.error(`💀 Fatal error detected, stopping generation: ${chapterError.message}`);
+            throw chapterError; // Stop generation for fatal errors
+          } else {
+            console.warn(`⚠️ Non-fatal error in chapter ${chapterNumber}, continuing to next chapter: ${chapterError.message}`);
+            // Create a placeholder chapter so we can continue
+            const placeholderChapter = {
+              title: chapterOutline.title,
+              content: `[Chapter ${chapterNumber} generation failed: ${chapterError.message}. Please regenerate this chapter manually.]`,
+              wordCount: 50,
+              summary: chapterOutline.summary,
+              number: chapterNumber,
+              targetMet: false,
+              error: chapterError.message
+            };
+            chapters.push(placeholderChapter);
+            
+            const progress = (chapterNumber / totalChapters) * 100;
+            const jobProgErr = await this.getJob(jobId);
+            await this.updateJob(jobId, {
+              progress,
+              chaptersCompleted: chapterNumber,
+              currentProcess: `Chapter ${chapterNumber} failed, continuing to next chapter...`,
+              logs: [...(jobProgErr?.logs || []), { 
+                message: `Chapter ${chapterNumber} failed but continuing generation`, 
+                type: 'warning', 
+                timestamp: new Date() 
+              }]
+            });
+            
+            // Add delay before continuing
+            console.log(`⏳ Waiting 3 seconds before continuing to next chapter...`);
+            await new Promise(resolve => setTimeout(resolve, 3000));
+          }
         }
       }
 
