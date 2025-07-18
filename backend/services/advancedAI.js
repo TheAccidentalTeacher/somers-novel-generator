@@ -300,9 +300,27 @@ Write the complete chapter now. Do not include chapter headers or numbering - ju
 
       // Railway container timeout protection - start generation immediately
       console.log(`🚀 Starting immediate chapter generation for job ${jobId}`);
-      setImmediate(() => {
-        this.generateChaptersWithTimeoutProtection(jobId, outline);
-      });
+      console.log(`📋 Outline ready with ${outline.length} chapters for background processing`);
+      
+      // Use setTimeout instead of setImmediate for better compatibility
+      setTimeout(async () => {
+        try {
+          console.log(`⚡ Background generation starting for job ${jobId}...`);
+          await this.generateChaptersWithTimeoutProtection(jobId, outline);
+        } catch (error) {
+          console.error(`❌ Background generation error for job ${jobId}:`, error);
+          this.updateJob(jobId, {
+            status: 'failed',
+            error: error.message,
+            currentProcess: 'Background generation failed',
+            logs: [...this.getJob(jobId).logs, { 
+              message: `Background generation error: ${error.message}`, 
+              type: 'error', 
+              timestamp: new Date() 
+            }]
+          });
+        }
+      }, 100); // Start after 100ms to ensure response is sent
 
       // Return immediately to prevent Railway timeout
       return {
@@ -329,19 +347,39 @@ Write the complete chapter now. Do not include chapter headers or numbering - ju
 
   // Generate chapters with timeout protection for Railway
   async generateChaptersWithTimeoutProtection(jobId, outline) {
+    console.log(`🎬 Background generation function called for job ${jobId}`);
+    
     const job = this.getJob(jobId);
-    if (!job) return;
+    if (!job) {
+      console.error(`❌ Job ${jobId} not found in background generation`);
+      return;
+    }
+
+    console.log(`🔍 Job found: ${job.id}, status: ${job.status}`);
 
     try {
       const totalChapters = outline.length;
       const chapters = [];
       
       console.log(`📚 Starting generation of ${totalChapters} chapters for job ${jobId}`);
+      
+      // Update job status to indicate background processing started
+      this.updateJob(jobId, {
+        status: 'generating',
+        currentProcess: `Background generation started - ${totalChapters} chapters to generate`,
+        logs: [...job.logs, { 
+          message: `Background generation started - ${totalChapters} chapters planned`, 
+          type: 'info', 
+          timestamp: new Date() 
+        }]
+      });
 
       // Generate each chapter iteratively
       for (let i = 0; i < totalChapters; i++) {
         const chapterNumber = i + 1;
         const chapterOutline = outline[i];
+
+        console.log(`📝 Starting Chapter ${chapterNumber}: ${chapterOutline.title}`);
 
         // Update progress frequently to show we're alive
         this.updateJob(jobId, {
@@ -354,88 +392,103 @@ Write the complete chapter now. Do not include chapter headers or numbering - ju
           }]
         });
 
-        console.log(`📝 Generating Chapter ${chapterNumber}: ${chapterOutline.title}`);
-
-        let chapter = await this.generateChapterAdvanced({
-          chapterNumber,
-          chapterOutline,
-          storyData: job.storyData,
-          previousChapters: chapters,
-          onProgress: (message) => {
-            this.updateJob(jobId, { currentProcess: message });
-            console.log(`📈 Progress: ${message}`);
-          }
-        });
-
-        // Check if chapter meets word count requirements and retry if needed
-        const targetWordCount = job.storyData.targetChapterLength || 1500;
-        const minWordCount = targetWordCount * 0.75; // 75% of target minimum
-        const maxRetries = 2;
-        let retryCount = 0;
-
-        while (chapter.wordCount < minWordCount && retryCount < maxRetries) {
-          retryCount++;
-          console.log(`⚠️ Chapter ${chapterNumber} word count too low: ${chapter.wordCount} words (target: ${targetWordCount}). Retry ${retryCount}/${maxRetries}`);
-          
-          this.updateJob(jobId, {
-            currentProcess: `Chapter ${chapterNumber} too short (${chapter.wordCount} words), regenerating to meet ${targetWordCount} word target...`,
-            logs: [...this.getJob(jobId).logs, { 
-              message: `Chapter ${chapterNumber} retry ${retryCount}/${maxRetries} - ${chapter.wordCount} words too short`, 
-              type: 'warning', 
-              timestamp: new Date() 
-            }]
-          });
-
-          chapter = await this.generateChapterAdvanced({
+        try {
+          let chapter = await this.generateChapterAdvanced({
             chapterNumber,
             chapterOutline,
             storyData: job.storyData,
             previousChapters: chapters,
-            isRetry: true,
-            previousWordCount: chapter.wordCount,
-            targetWordCount: targetWordCount,
             onProgress: (message) => {
               this.updateJob(jobId, { currentProcess: message });
+              console.log(`📈 Progress: ${message}`);
             }
           });
-        }
 
-        if (chapter.wordCount < minWordCount) {
-          console.log(`⚠️ Chapter ${chapterNumber} still under target after ${maxRetries} retries: ${chapter.wordCount} words`);
+          console.log(`✅ Chapter ${chapterNumber} generated: ${chapter.wordCount} words`);
+
+          // Check if chapter meets word count requirements and retry if needed
+          const targetWordCount = job.storyData.targetChapterLength || 1500;
+          const minWordCount = targetWordCount * 0.75; // 75% of target minimum
+          const maxRetries = 2;
+          let retryCount = 0;
+
+          while (chapter.wordCount < minWordCount && retryCount < maxRetries) {
+            retryCount++;
+            console.log(`⚠️ Chapter ${chapterNumber} word count too low: ${chapter.wordCount} words (target: ${targetWordCount}). Retry ${retryCount}/${maxRetries}`);
+            
+            this.updateJob(jobId, {
+              currentProcess: `Chapter ${chapterNumber} too short (${chapter.wordCount} words), regenerating to meet ${targetWordCount} word target...`,
+              logs: [...this.getJob(jobId).logs, { 
+                message: `Chapter ${chapterNumber} retry ${retryCount}/${maxRetries} - ${chapter.wordCount} words too short`, 
+                type: 'warning', 
+                timestamp: new Date() 
+              }]
+            });
+
+            chapter = await this.generateChapterAdvanced({
+              chapterNumber,
+              chapterOutline,
+              storyData: job.storyData,
+              previousChapters: chapters,
+              isRetry: true,
+              previousWordCount: chapter.wordCount,
+              targetWordCount: targetWordCount,
+              onProgress: (message) => {
+                this.updateJob(jobId, { currentProcess: message });
+                console.log(`🔄 Retry Progress: ${message}`);
+              }
+            });
+          }
+
+          if (chapter.wordCount < minWordCount) {
+            console.log(`⚠️ Chapter ${chapterNumber} still under target after ${maxRetries} retries: ${chapter.wordCount} words`);
+            this.updateJob(jobId, {
+              logs: [...this.getJob(jobId).logs, { 
+                message: `Chapter ${chapterNumber} completed at ${chapter.wordCount} words (below target but proceeding)`, 
+                type: 'warning', 
+                timestamp: new Date() 
+              }]
+            });
+          } else {
+            console.log(`✅ Chapter ${chapterNumber} completed successfully: ${chapter.wordCount} words`);
+            this.updateJob(jobId, {
+              logs: [...this.getJob(jobId).logs, { 
+                message: `Chapter ${chapterNumber} completed successfully (${chapter.wordCount} words)`, 
+                type: 'success', 
+                timestamp: new Date() 
+              }]
+            });
+          }
+
+          chapters.push(chapter);
+
+          const progress = (chapterNumber / totalChapters) * 100;
           this.updateJob(jobId, {
+            progress,
+            chaptersCompleted: chapterNumber,
+            currentProcess: `Chapter ${chapterNumber} completed (${chapter.wordCount} words) - ${Math.round(progress)}% done`,
             logs: [...this.getJob(jobId).logs, { 
-              message: `Chapter ${chapterNumber} completed at ${chapter.wordCount} words (below target but proceeding)`, 
-              type: 'warning', 
-              timestamp: new Date() 
-            }]
-          });
-        } else {
-          console.log(`✅ Chapter ${chapterNumber} completed: ${chapter.wordCount} words`);
-          this.updateJob(jobId, {
-            logs: [...this.getJob(jobId).logs, { 
-              message: `Chapter ${chapterNumber} completed successfully (${chapter.wordCount} words)`, 
+              message: `Chapter ${chapterNumber} completed (${chapter.wordCount} words) - ${Math.round(progress)}% done`, 
               type: 'success', 
               timestamp: new Date() 
             }]
           });
+
+          // Add delay between chapters to prevent rate limiting and show progress
+          console.log(`⏳ Waiting 2 seconds before next chapter...`);
+          await new Promise(resolve => setTimeout(resolve, 2000));
+          
+        } catch (chapterError) {
+          console.error(`❌ Error generating chapter ${chapterNumber}:`, chapterError);
+          this.updateJob(jobId, {
+            logs: [...this.getJob(jobId).logs, { 
+              message: `Chapter ${chapterNumber} generation failed: ${chapterError.message}`, 
+              type: 'error', 
+              timestamp: new Date() 
+            }]
+          });
+          throw chapterError; // Re-throw to stop generation
         }
-
-        chapters.push(chapter);
-
-        const progress = (chapterNumber / totalChapters) * 100;
-        this.updateJob(jobId, {
-          progress,
-          chaptersCompleted: chapterNumber,
-          currentProcess: `Chapter ${chapterNumber} completed (${chapter.wordCount} words)`,
-          logs: [...this.getJob(jobId).logs, { 
-            message: `Chapter ${chapterNumber} completed (${chapter.wordCount} words)`, 
-            type: 'success', 
-            timestamp: new Date() 
-          }]
-        });
-
-        // Add delay between chapters to prevent rate limiting and show progress
-        await new Promise(resolve => setTimeout(resolve, 2000));
       }
 
       const totalWords = chapters.reduce((sum, ch) => sum + ch.wordCount, 0);
