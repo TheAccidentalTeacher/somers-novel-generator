@@ -390,6 +390,9 @@ const AutoGenerate = ({ conflictData, apiConfig, onSuccess, onError, onNotificat
     console.log(`🚀 Conflict data:`, conflictData);
     console.log(`🚀 Outline length:`, outline.length);
     
+    // EMERGENCY DEBUG: Test if function is actually being called
+    alert('GENERATION BUTTON CLICKED! Check console for details.');
+    
     // If we're in setup phase, start planning
     if (generationPhase === 'setup') {
       console.log(`🚀 FRONTEND DEBUG: Moving from setup to planning phase`);
