@@ -391,6 +391,8 @@ async function processAdvancedStream(streamId) {
       const chapterNumber = i + 1;
       const chapterOutline = outline[i];
 
+      console.log(`🚀 Starting Chapter ${chapterNumber}: ${chapterOutline.title}`);
+
       advancedAI.broadcastToStream(streamId, 'chapter_planning', {
         chapter: chapterNumber,
         title: chapterOutline.title
@@ -401,15 +403,24 @@ async function processAdvancedStream(streamId) {
         title: chapterOutline.title
       });
 
-      let chapter = await advancedAI.generateChapterAdvanced({
-        chapterNumber,
-        chapterOutline,
-        storyData: stream.storyData,
-        previousChapters: chapters,
-        onProgress: (message) => {
-          advancedAI.broadcastToStream(streamId, 'process_update', { message });
-        }
-      });
+      let chapter;
+      try {
+        chapter = await advancedAI.generateChapterAdvanced({
+          chapterNumber,
+          chapterOutline,
+          storyData: stream.storyData,
+          previousChapters: chapters,
+          onProgress: (message) => {
+            advancedAI.broadcastToStream(streamId, 'process_update', { message });
+          }
+        });
+      } catch (chapterError) {
+        console.error(`❌ Chapter ${chapterNumber} generation failed:`, chapterError);
+        advancedAI.broadcastToStream(streamId, 'error', { 
+          error: `Chapter ${chapterNumber} generation failed: ${chapterError.message}` 
+        });
+        throw chapterError; // Re-throw to be caught by outer try-catch
+      }
 
       // Check if chapter meets word count requirements and retry if needed
       const targetWordCount = stream.storyData.targetChapterLength || 1500;
@@ -425,18 +436,26 @@ async function processAdvancedStream(streamId) {
           message: `Chapter ${chapterNumber} too short (${chapter.wordCount} words), regenerating to meet ${targetWordCount} word target...` 
         });
 
-        chapter = await advancedAI.generateChapterAdvanced({
-          chapterNumber,
-          chapterOutline,
-          storyData: stream.storyData,
-          previousChapters: chapters,
-          isRetry: true,
-          previousWordCount: chapter.wordCount,
-          targetWordCount: targetWordCount,
-          onProgress: (message) => {
-            advancedAI.broadcastToStream(streamId, 'process_update', { message });
-          }
-        });
+        try {
+          chapter = await advancedAI.generateChapterAdvanced({
+            chapterNumber,
+            chapterOutline,
+            storyData: stream.storyData,
+            previousChapters: chapters,
+            isRetry: true,
+            previousWordCount: chapter.wordCount,
+            targetWordCount: targetWordCount,
+            onProgress: (message) => {
+              advancedAI.broadcastToStream(streamId, 'process_update', { message });
+            }
+          });
+        } catch (retryError) {
+          console.error(`❌ Chapter ${chapterNumber} retry ${retryCount} failed:`, retryError);
+          advancedAI.broadcastToStream(streamId, 'process_update', { 
+            message: `Chapter ${chapterNumber} retry ${retryCount} failed: ${retryError.message}. Proceeding with previous version...` 
+          });
+          break; // Exit retry loop if generation fails
+        }
       }
 
       if (chapter.wordCount < minWordCount) {
@@ -447,6 +466,8 @@ async function processAdvancedStream(streamId) {
       }
 
       chapters.push(chapter);
+
+      console.log(`✅ Chapter ${chapterNumber} completed: ${chapter.wordCount} words`);
 
       advancedAI.broadcastToStream(streamId, 'chapter_complete', {
         chapter: chapterNumber,
@@ -459,6 +480,7 @@ async function processAdvancedStream(streamId) {
 
       // Reduce delay for single user (no rate limiting needed)
       await new Promise(resolve => setTimeout(resolve, 500));
+      console.log(`⏱️ Moving to next chapter (${chapterNumber + 1}/${totalChapters})`);
     }
 
     const totalWords = chapters.reduce((sum, ch) => sum + ch.wordCount, 0);
