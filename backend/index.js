@@ -5,6 +5,7 @@ import dotenv from 'dotenv';
 
 // Import routes
 import advancedGenerationRouter from './routes/advancedGeneration.js';
+import genresRouter from './routes/genres.js';
 
 // Load environment variables
 dotenv.config();
@@ -190,6 +191,7 @@ app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
 // API routes
 app.use('/api', advancedGenerationRouter);
+app.use('/api', genresRouter);
 
 // Health check endpoint for connection testing
 app.get('/api/health', async (req, res) => {
