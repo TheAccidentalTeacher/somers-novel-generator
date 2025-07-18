@@ -518,9 +518,20 @@ const AutoGenerate = ({ conflictData, apiConfig, onSuccess, onError, onNotificat
       console.log('🔍 DEBUG: storySetup state:', storySetup);
       console.log('🔍 DEBUG: Required fields check:');
       console.log('  - title:', storySetup.title);
-      console.log('  - synopsis:', storySetup.synopsis);
+      console.log('  - synopsis:', storySetup.synopsis ? `${storySetup.synopsis.length} characters` : 'missing');
       console.log('  - genre:', storySetup.genre);
       console.log('  - subgenre:', storySetup.subgenre);
+      console.log('  - wordCount:', storySetup.wordCount);
+      
+      // Check for potential issues
+      if (storySetup.synopsis && storySetup.synopsis.length > 10000) {
+        console.warn('⚠️ WARNING: Very large synopsis detected:', storySetup.synopsis.length, 'characters');
+      }
+      
+      if (!storySetup.title || !storySetup.synopsis || !storySetup.genre) {
+        console.error('❌ DEBUG: Missing required fields for outline creation');
+        throw new Error('Please fill in all required fields: title, synopsis, and genre');
+      }
       
       setCurrentProcess('Analyzing your synopsis with GPT-4...');
       
@@ -541,6 +552,8 @@ const AutoGenerate = ({ conflictData, apiConfig, onSuccess, onError, onNotificat
 
       // Use the API service instead of raw fetch
       console.log('🔍 DEBUG: Calling apiService.createOutline...');
+      console.log('🔍 DEBUG: Outline data size:', JSON.stringify(outlineData).length, 'characters');
+      
       const data = await apiService.createOutline(outlineData);
       console.log('🔍 DEBUG: Received response:', data);
 
@@ -559,10 +572,19 @@ const AutoGenerate = ({ conflictData, apiConfig, onSuccess, onError, onNotificat
 
     } catch (error) {
       console.error('🔍 DEBUG: Outline creation error:', error);
+      console.error('🔍 DEBUG: Error type:', typeof error);
+      console.error('🔍 DEBUG: Error message:', error.message);
+      console.error('🔍 DEBUG: Error stack:', error.stack);
+      
+      if (error.status) {
+        console.error('🔍 DEBUG: HTTP Status:', error.status);
+      }
+      
       setError(error);
       setCurrentProcess('');
       setGenerationPhase('setup');
       onError(error);
+      addLog(`Outline creation failed: ${error.message}`, 'error');
     }
   };
 
