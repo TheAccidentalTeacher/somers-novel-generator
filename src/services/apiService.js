@@ -13,26 +13,42 @@ class APIService {
     };
     
     this.config = { ...this.defaultConfig };
+    
+    // Log the configuration for debugging
+    console.log(`🚀 APIService initialized:`);
+    console.log(`   📡 Base URL: ${this.config.baseUrl}`);
+    console.log(`   ⏱️  Timeout: ${this.config.timeout}ms`);
+    console.log(`   🔄 Retry Attempts: ${this.config.retryAttempts}`);
   }
 
   getDefaultBaseUrl() {
+    // Check for environment variable first (works in all environments)
+    const envUrl = import.meta.env.VITE_API_BASE_URL;
+    if (envUrl) {
+      console.log(`🌐 Using API URL from environment: ${envUrl}`);
+      return envUrl;
+    }
+
     // Detect environment and set appropriate base URL
     if (typeof window !== 'undefined') {
       const hostname = window.location.hostname;
       
-      // Production (Netlify) - use environment variable
+      // Production (Netlify) - try to get Railway URL
       if (hostname.includes('netlify.app')) {
-        return import.meta.env.VITE_API_BASE_URL || 'https://somers-novel-generator-production.up.railway.app/api';
+        console.log(`🚀 Production environment detected: ${hostname}`);
+        return 'https://somers-novel-generator-production.up.railway.app/api';
       }
       
       // Local development
       if (hostname === 'localhost' || hostname === '127.0.0.1') {
-        return import.meta.env.VITE_API_BASE_URL || 'http://localhost:3000/api';
+        console.log(`🔧 Development environment detected: ${hostname}`);
+        return 'http://localhost:3000/api';
       }
     }
     
-    // Fallback - use environment variable or Railway URL
-    return import.meta.env.VITE_API_BASE_URL || 'https://somers-novel-generator-production.up.railway.app/api';
+    // Fallback - Railway URL
+    console.log(`🔄 Using fallback Railway URL`);
+    return 'https://somers-novel-generator-production.up.railway.app/api';
   }
 
   updateConfig(newConfig) {
