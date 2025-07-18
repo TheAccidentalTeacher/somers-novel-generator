@@ -96,27 +96,188 @@ router.post('/createOutline', async (req, res) => {
   }
 });
 
+// Quick novel generation endpoint (compatibility)
+router.post('/generateNovel', async (req, res) => {
+  try {
+    console.log('⚡ Quick novel generation...');
+    
+    const {
+      synopsis,
+      genre,
+      subgenre,
+      wordCount,
+      chapterCount
+    } = req.body;
+
+    // Validate required fields
+    if (!synopsis || typeof synopsis !== 'string' || synopsis.trim().length < 10) {
+      return res.status(400).json({
+        success: false,
+        error: 'Synopsis is required and must be at least 10 characters'
+      });
+    }
+    
+    if (!genre || typeof genre !== 'string' || genre.trim().length === 0) {
+      return res.status(400).json({
+        success: false,
+        error: 'Genre is required'
+      });
+    }
+
+    if (!advancedAI.isConfigured()) {
+      return res.status(503).json({
+        success: false,
+        error: 'AI service not configured. Please check OpenAI API key.'
+      });
+    }
+
+    // Create basic story data for quick generation
+    const storyData = {
+      title: 'Generated Novel',
+      genre,
+      subgenre: subgenre || genre,
+      synopsis,
+      wordCount: wordCount || 50000,
+      chapters: chapterCount || 20,
+      targetChapterLength: Math.floor((wordCount || 50000) / (chapterCount || 20)),
+      fictionLength: 'novella'
+    };
+
+    console.log(`Quick generating: ${storyData.chapters} chapters, ${storyData.wordCount} words`);
+
+    // Create outline first
+    const outline = await advancedAI.createOutline(storyData);
+
+    res.json({
+      success: true,
+      analysis: `Quick outline created with ${outline.length} chapters`,
+      outline: outline,
+      message: `Ready to generate ${outline.length} chapters`
+    });
+
+  } catch (error) {
+    console.error('❌ Quick generation error:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message
+    });
+  }
+});
+
+// Auto generation endpoint (starts background job)
+router.post('/autoGenerateNovel', async (req, res) => {
+  try {
+    console.log('🤖 Auto generation starting...');
+    
+    const { mode, jobId, synopsis, genre, subgenre, wordCount, chapterCount, conflictStructure, chapterLength, useRomanceTemplate, selectedRomanceTemplate, primaryConflictType, useBatch } = req.body;
+
+    // Handle status check mode
+    if (mode === 'check' && jobId) {
+      const job = advancedAI.getJob(jobId);
+      if (!job) {
+        return res.status(404).json({
+          success: false,
+          error: 'Job not found'
+        });
+      }
+
+      return res.json({
+        jobId: job.id,
+        status: job.status,
+        progress: job.progress,
+        currentStep: job.currentProcess,
+        analysis: job.analysis || '',
+        chapters: job.result?.chapters || [],
+        fullNovel: job.result ? job.result.chapters?.map(ch => ch.content).join('\n\n') : '',
+        conflictStructure: conflictStructure || {},
+        errors: job.error ? [job.error] : [],
+        createdAt: job.startTime?.toISOString() || new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+        completedAt: job.status === 'completed' ? new Date().toISOString() : null
+      });
+    }
+
+    // Handle start mode
+    if (mode === 'start') {
+      if (!synopsis || !genre) {
+        return res.status(400).json({
+          success: false,
+          error: 'Synopsis and genre are required'
+        });
+      }
+
+      if (!advancedAI.isConfigured()) {
+        return res.status(503).json({
+          success: false,
+          error: 'AI service not configured. Please check OpenAI API key.'
+        });
+      }
+
+      // Create story data
+      const storyData = {
+        title: 'Auto Generated Novel',
+        genre,
+        subgenre: subgenre || genre,
+        synopsis,
+        wordCount: wordCount || 50000,
+        chapters: chapterCount || 20,
+        targetChapterLength: Math.floor((wordCount || 50000) / (chapterCount || 20)),
+        fictionLength: wordCount > 80000 ? 'novel' : 'novella',
+        conflictStructure,
+        useRomanceTemplate,
+        selectedRomanceTemplate,
+        primaryConflictType
+      };
+
+      // Create job
+      const newJobId = advancedAI.createJob(storyData, { 
+        chapterLength: chapterLength || 'medium',
+        useBatch: useBatch !== false 
+      });
+      
+      console.log(`🤖 Auto generation job created: ${newJobId}`);
+
+      // Start processing asynchronously
+      advancedAI.processAdvancedGeneration(newJobId).catch(error => {
+        console.error(`Auto job ${newJobId} processing error:`, error);
+        advancedAI.updateJob(newJobId, {
+          status: 'failed',
+          error: error.message,
+          currentProcess: 'Generation failed'
+        });
+      });
+
+      return res.json({
+        success: true,
+        jobId: newJobId,
+        message: 'Auto generation started',
+        estimatedCompletion: new Date(Date.now() + 30 * 60000).toISOString() // 30 minutes
+      });
+    }
+
+    return res.status(400).json({
+      success: false,
+      error: 'Invalid mode. Use "start" or "check"'
+    });
+
+  } catch (error) {
+    console.error('❌ Auto generation error:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message
+    });
+  }
+});
+
 // Advanced batch generation endpoint
 router.post('/advancedGeneration', async (req, res) => {
   try {
-    console.log('🚀 BACKEND DEBUG: Starting advanced generation...');
-    console.log('🚀 Request body keys:', Object.keys(req.body));
-    console.log('🚀 Request headers:', req.headers);
-    console.log('🚀 Request URL:', req.url);
+    console.log('🚀 Starting advanced generation...');
     
     const { storyData, preferences, useAdvancedIteration } = req.body;
-    
-    console.log('🚀 BACKEND DEBUG: Story data received:', {
-      title: storyData?.title,
-      genre: storyData?.genre,
-      chapters: storyData?.chapters,
-      wordCount: storyData?.wordCount,
-      synopsisLength: storyData?.synopsis?.length
-    });
 
     // Enhanced validation for story data
     if (!storyData || typeof storyData !== 'object') {
-      console.log('❌ BACKEND DEBUG: Invalid story data');
       return res.status(400).json({
         success: false,
         error: 'Story data is required and must be an object'
@@ -124,7 +285,6 @@ router.post('/advancedGeneration', async (req, res) => {
     }
     
     if (!storyData.title || typeof storyData.title !== 'string' || storyData.title.trim().length === 0) {
-      console.log('❌ BACKEND DEBUG: Invalid title');
       return res.status(400).json({
         success: false,
         error: 'Story title is required and must be a non-empty string'
@@ -132,7 +292,6 @@ router.post('/advancedGeneration', async (req, res) => {
     }
     
     if (!storyData.synopsis || typeof storyData.synopsis !== 'string' || storyData.synopsis.trim().length < 10) {
-      console.log('❌ BACKEND DEBUG: Invalid synopsis');
       return res.status(400).json({
         success: false,
         error: 'Story synopsis is required and must be at least 10 characters'
@@ -140,23 +299,20 @@ router.post('/advancedGeneration', async (req, res) => {
     }
 
     if (!advancedAI.isConfigured()) {
-      console.log('❌ BACKEND DEBUG: AI service not configured');
       return res.status(503).json({
         success: false,
         error: 'AI service not configured. Please check OpenAI API key.'
       });
     }
 
-    console.log('🚀 BACKEND DEBUG: Creating job...');
     // Create job
-    const jobId = await advancedAI.createJob(storyData, preferences);
+    const jobId = advancedAI.createJob(storyData, preferences);
     
-    console.log(`📝 BACKEND DEBUG: Advanced generation job created: ${jobId}`);
+    console.log(`📝 Advanced generation job created: ${jobId}`);
 
     // Start processing asynchronously with proper error handling
-    console.log('🚀 BACKEND DEBUG: Starting background processing...');
     advancedAI.processAdvancedGeneration(jobId).catch(error => {
-      console.error(`❌ BACKEND DEBUG: Job ${jobId} processing error:`, error);
+      console.error(`Job ${jobId} processing error:`, error);
       // Ensure job status is updated on failure
       advancedAI.updateJob(jobId, {
         status: 'failed',
@@ -165,15 +321,11 @@ router.post('/advancedGeneration', async (req, res) => {
       });
     });
 
-    console.log('🚀 BACKEND DEBUG: Sending response to frontend...');
-    const response = {
+    res.json({
       success: true,
       jobId: jobId,
       message: 'Advanced generation started'
-    };
-    console.log('🚀 BACKEND DEBUG: Response:', response);
-    
-    res.json(response);
+    });
 
   } catch (error) {
     console.error('❌ Advanced generation start error:', error);
@@ -188,45 +340,34 @@ router.post('/advancedGeneration', async (req, res) => {
 router.get('/advancedGeneration/:jobId', async (req, res) => {
   try {
     const { jobId } = req.params;
-    console.log(`🔍 BACKEND DEBUG: Getting status for job ${jobId}`);
     
     // Validate job ID format (simple validation for single user)
     if (!jobId || typeof jobId !== 'string' || jobId.length === 0) {
-      console.log(`❌ BACKEND DEBUG: Invalid job ID: ${jobId}`);
       return res.status(400).json({
         success: false,
         error: 'Valid job ID is required'
       });
     }
     
-    console.log(`🔍 BACKEND DEBUG: Calling advancedAI.getJob(${jobId})`);
-    const job = await advancedAI.getJob(jobId);
-    console.log(`🔍 BACKEND DEBUG: Job result:`, job ? {
-      id: job.id,
-      status: job.status,
-      progress: job.progress,
-      currentProcess: job.currentProcess,
-      logsCount: job.logs?.length || 0
-    } : 'null');
+    const job = advancedAI.getJob(jobId);
 
     if (!job) {
-      console.log(`❌ BACKEND DEBUG: Job ${jobId} not found`);
       return res.status(404).json({
         success: false,
         error: 'Job not found'
       });
     }
 
-    const response = {
+    res.json({
       success: true,
       job: {
         id: job.id,
         status: job.status,
-        progress: job.progress,
-        chaptersCompleted: job.chaptersCompleted,
-        currentChapter: job.currentChapter,
-        currentProcess: job.currentProcess,
-        logs: job.logs,
+        progress: job.progress || 0,
+        chaptersCompleted: job.chaptersCompleted || 0,
+        currentChapter: job.currentChapter || 0,
+        currentProcess: job.currentProcess || 'Processing...',
+        logs: job.logs || [],
         result: job.result,
         error: job.error,
         elapsedTime: job.startTime ? Math.round((Date.now() - job.startTime.getTime()) / 1000) + 's' : '0s',
@@ -234,15 +375,7 @@ router.get('/advancedGeneration/:jobId', async (req, res) => {
           Math.round(((Date.now() - job.startTime.getTime()) / job.progress) * (100 - job.progress) / 1000) + 's' : 
           'Calculating...'
       }
-    };
-    
-    console.log(`🔍 BACKEND DEBUG: Sending job status response:`, {
-      jobId: response.job.id,
-      status: response.job.status,
-      progress: response.job.progress
     });
-    
-    res.json(response);
 
   } catch (error) {
     console.error('❌ Job status error:', error);
@@ -541,5 +674,7 @@ async function processAdvancedStream(streamId) {
     advancedAI.broadcastToStream(streamId, 'error', { error: error.message });
   }
 }
+
+
 
 export default router;

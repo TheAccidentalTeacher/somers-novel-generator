@@ -12,34 +12,6 @@ dotenv.config();
 const app = express();
 const PORT = process.env.PORT || 3000;
 
-// Railway keep-alive mechanism for long-running processes
-const KEEP_ALIVE_INTERVAL = 30000; // 30 seconds
-setInterval(() => {
-  console.log(`💓 Keep-alive: ${new Date().toISOString()} - Server healthy`);
-}, KEEP_ALIVE_INTERVAL);
-
-// 🚀 RAILWAY OPTIMIZATION: Prevent container sleep during generation
-const preventContainerSleep = () => {
-  // Self-ping to keep Railway container active
-  const keepAliveUrl = process.env.RAILWAY_STATIC_URL || `http://localhost:${PORT}`;
-  
-  setInterval(async () => {
-    try {
-      // Only ping if we're in production Railway environment
-      if (process.env.RAILWAY_ENVIRONMENT) {
-        const response = await fetch(`${keepAliveUrl}/api/health`);
-        console.log(`🏃 Railway keep-alive ping: ${response.status}`);
-      }
-    } catch (error) {
-      // Ignore ping errors - they're not critical
-      console.log(`⚠️ Keep-alive ping failed: ${error.message}`);
-    }
-  }, 14 * 60 * 1000); // Ping every 14 minutes (Railway free tier sleeps after 15 min)
-};
-
-// Start keep-alive after a delay to ensure server is ready
-setTimeout(preventContainerSleep, 30000);
-
 // Trust proxy for Railway/production environments (must be before other middleware)
 app.set('trust proxy', true);
 
@@ -83,8 +55,12 @@ class CORSManager {
       this.productionDomains.add(frontendUrl.trim());
     }
     
-    // Fallback for safety
+    // Fallback for safety - add both possible Netlify URLs
     this.productionDomains.add('https://somers-novel-writer.netlify.app');
+    this.productionDomains.add('https://somers-novel-generator.netlify.app');
+    
+    // Also add any URL that follows the pattern for your repo
+    this.productionDomains.add('https://new-novel-generator.netlify.app');
     
     // Development domains
     this.developmentDomains = new Set([
@@ -216,30 +192,40 @@ app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 app.use('/api', advancedGenerationRouter);
 
 // Health check endpoint for connection testing
-app.get('/api/health', (req, res) => {
-  res.json({
-    success: true,
-    message: 'Somers Novel Generator API is running',
-    timestamp: new Date().toISOString(),
-    uptime: process.uptime(),
-    environment: process.env.NODE_ENV || 'development',
-    version: '2.0'
-  });
-});
+app.get('/api/health', async (req, res) => {
+  try {
+    const healthData = {
+      success: true,
+      message: 'Somers Novel Generator API is running',
+      timestamp: new Date().toISOString(),
+      version: '2.0.0',
+      status: 'healthy',
+      environment: process.env.NODE_ENV || 'development',
+      openai: {
+        configured: !!process.env.OPENAI_API_KEY,
+        status: process.env.OPENAI_API_KEY ? 'ready' : 'not_configured'
+      },
+      cors: {
+        allowedOrigins: Array.from(corsManager.productionDomains),
+        mode: corsManager.isDevelopment ? 'development' : 'production'
+      },
+      memory: {
+        used: Math.round(process.memoryUsage().heapUsed / 1024 / 1024) + 'MB',
+        total: Math.round(process.memoryUsage().heapTotal / 1024 / 1024) + 'MB'
+      },
+      uptime: Math.round(process.uptime()) + 's'
+    };
 
-// Railway keep-alive self-ping every 5 minutes to prevent container sleep
-if (process.env.NODE_ENV === 'production') {
-  const SELF_PING_INTERVAL = 5 * 60 * 1000; // 5 minutes
-  setInterval(async () => {
-    try {
-      const fetch = (await import('node-fetch')).default;
-      const response = await fetch(`http://localhost:${PORT}/api/health`);
-      console.log(`🏓 Self-ping successful: ${response.status}`);
-    } catch (error) {
-      console.log(`🏓 Self-ping failed: ${error.message}`);
-    }
-  }, SELF_PING_INTERVAL);
-}
+    res.json(healthData);
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      message: 'Health check failed',
+      error: error.message,
+      timestamp: new Date().toISOString()
+    });
+  }
+});
 
 // Root endpoint
 app.get('/', (req, res) => {

@@ -1,6 +1,4 @@
-
 import OpenAI from 'openai';
-import mongoClient from '../mongoClient.js';
 
 class AdvancedAIService {
   constructor() {
@@ -10,101 +8,110 @@ class AdvancedAIService {
       console.warn('⚠️  OpenAI API key not configured. Advanced AI services will not be available.');
       this.openai = null;
     } else {
-      console.log('✅ Advanced AI Service initialized successfully - v4.0 (2025-07-17)');
+      console.log('✅ Advanced AI Service initialized successfully - v2.0 (2025-07-14)');
       this.openai = new OpenAI({
-        apiKey: apiKey
+        apiKey: apiKey,
+        timeout: 120000, // 2 minutes timeout for API calls
+        maxRetries: 3,
       });
     }
     
-    // Initialize both MongoDB and in-memory storage (fallback)
-    this.jobs = new Map(); // In-memory fallback
+    // Job storage (in production, use Redis or database)
+    this.jobs = new Map();
     this.streams = new Map();
-    this.mongoReady = false;
     
-    // Initialize MongoDB connection
-    this.initializeMongoDB();
+    // Add cleanup interval to prevent memory leaks
+    this.cleanupInterval = setInterval(() => {
+      this.cleanupOldJobs();
+    }, 60000); // Cleanup every minute
   }
 
-  async initializeMongoDB() {
-    try {
-      await mongoClient.connect();
-      this.mongoReady = true;
-      console.log('✅ MongoDB storage ready for novel generation jobs');
-      
-      // 🚨 CONTAINER RESTART RECOVERY: Check for orphaned jobs
-      await this.recoverOrphanedJobs();
-    } catch (error) {
-      console.warn('⚠️ MongoDB connection failed, using in-memory storage:', error.message);
-      this.mongoReady = false;
-      console.log('📝 In-memory job storage initialized as fallback');
-    }
-  }
-
-  // 🚨 NEW: Recover jobs that were interrupted by container restarts
-  async recoverOrphanedJobs() {
-    if (!this.mongoReady) return;
+  // Cleanup old completed jobs to prevent memory leaks
+  cleanupOldJobs() {
+    const now = Date.now();
+    const CLEANUP_AGE = 2 * 60 * 60 * 1000; // 2 hours
     
-    try {
-      console.log('🔄 CONTAINER RESTART RECOVERY: Checking for orphaned jobs...');
-      
-      // Get all jobs collection
-      const collection = await mongoClient.getJobsCollection();
-      const orphanedJobs = await collection.find({
-        status: { $in: ['running', 'generating'] },
-        startTime: { $lt: new Date(Date.now() - 5 * 60 * 1000) } // Older than 5 minutes
-      }).toArray();
-      
-      console.log(`🔄 Found ${orphanedJobs.length} potentially orphaned jobs`);
-      
-      for (const job of orphanedJobs) {
-        console.log(`🔄 RECOVERING orphaned job: ${job.id}`);
-        console.log(`🔄 Job status: ${job.status}, chapters: ${job.chaptersCompleted}/${job.storyData?.chapters}`);
-        
-        // Resume generation from where it left off
-        this.resumeJobGeneration(job.id, job).catch(error => {
-          console.error(`❌ Failed to resume job ${job.id}:`, error);
-          // Mark as failed if resume fails
-          this.updateJob(job.id, {
-            status: 'failed',
-            error: 'Container restart recovery failed',
-            currentProcess: 'Recovery failed'
-          });
-        });
+    for (const [jobId, job] of this.jobs.entries()) {
+      if (job.status === 'completed' || job.status === 'failed') {
+        const jobAge = now - job.startTime.getTime();
+        if (jobAge > CLEANUP_AGE) {
+          console.log(`🧹 Cleaning up old job: ${jobId}`);
+          this.jobs.delete(jobId);
+        }
       }
-    } catch (error) {
-      console.error('❌ Error recovering orphaned jobs:', error);
     }
-  }
-
-  // 🚨 NEW: Resume a job that was interrupted by container restart
-  async resumeJobGeneration(jobId, existingJob) {
-    console.log(`🔄 RESUMING JOB: ${jobId} from chapter ${existingJob.chaptersCompleted + 1}`);
-    
-    // Update job to show it's being resumed
-    await this.updateJob(jobId, {
-      status: 'generating',
-      currentProcess: `Resuming from container restart - continuing from chapter ${existingJob.chaptersCompleted + 1}`,
-      logs: [...(existingJob.logs || []), {
-        message: `Container restart detected - resuming generation from chapter ${existingJob.chaptersCompleted + 1}`,
-        type: 'warning',
-        timestamp: new Date()
-      }]
-    });
-
-    // Get the outline (should be stored in job data)
-    let outline = existingJob.storyData?.outline;
-    if (!outline || outline.length === 0) {
-      console.log(`🔄 Creating new outline for resumed job ${jobId}...`);
-      outline = await this.createOutline(existingJob.storyData);
-    }
-
-    // Start generation immediately (no setTimeout needed since we're already in a recovered context)
-    console.log(`🔄 Starting immediate chapter generation for resumed job ${jobId}`);
-    await this.generateChaptersWithTimeoutProtection(jobId, outline);
   }
 
   isConfigured() {
     return this.openai !== null;
+  }
+
+  // Robust OpenAI API request wrapper with retry logic and error handling
+  async makeOpenAIRequest(requestFn, operation = 'API call', maxRetries = 3) {
+    let lastError;
+    
+    for (let attempt = 1; attempt <= maxRetries; attempt++) {
+      try {
+        console.log(`🚀 OpenAI ${operation} attempt ${attempt}/${maxRetries}`);
+        
+        const result = await requestFn();
+        
+        console.log(`✅ OpenAI ${operation} succeeded on attempt ${attempt}`);
+        return result;
+        
+      } catch (error) {
+        lastError = error;
+        
+        // Log the specific error
+        console.error(`❌ OpenAI ${operation} attempt ${attempt} failed:`, {
+          message: error.message,
+          status: error.status,
+          code: error.code,
+          type: error.type
+        });
+        
+        // Handle specific error types
+        if (error.status === 429) {
+          // Rate limit - wait longer before retry
+          const waitTime = Math.min(5000 * attempt, 30000); // Up to 30 seconds
+          console.log(`⏳ Rate limited, waiting ${waitTime}ms before retry...`);
+          await this.sleep(waitTime);
+          continue;
+        }
+        
+        if (error.status === 401) {
+          // Authentication error - don't retry
+          throw new Error(`OpenAI authentication failed: ${error.message}`);
+        }
+        
+        if (error.status === 400) {
+          // Bad request - don't retry
+          throw new Error(`OpenAI request error: ${error.message}`);
+        }
+        
+        if (error.status >= 500) {
+          // Server error - retry with exponential backoff
+          const waitTime = Math.min(1000 * Math.pow(2, attempt - 1), 10000); // Up to 10 seconds
+          console.log(`⏳ Server error, waiting ${waitTime}ms before retry...`);
+          await this.sleep(waitTime);
+          continue;
+        }
+        
+        // For other errors, wait a bit before retry
+        if (attempt < maxRetries) {
+          const waitTime = 2000 * attempt;
+          console.log(`⏳ Waiting ${waitTime}ms before retry...`);
+          await this.sleep(waitTime);
+        }
+      }
+    }
+    
+    // All retries failed
+    throw new Error(`${operation} failed after ${maxRetries} attempts: ${lastError.message}`);
+  }
+
+  sleep(ms) {
+    return new Promise(resolve => setTimeout(resolve, ms));
   }
 
   // Generate detailed outline from synopsis using GPT-4
@@ -142,19 +149,23 @@ Return a JSON array with this exact structure:
 [
   {
     "title": "Chapter Title",
-    "summary": "Concise chapter summary (1-2 sentences) describing the key events, character developments, conflicts, and emotional beats. Focus on WHAT HAPPENS in the chapter. Keep each summary under 50 words."
+    "summary": "Brief but detailed chapter summary (2-3 sentences) describing the key events, character developments, conflicts, and emotional beats. Focus on WHAT HAPPENS in the chapter, not how long it should be."
   }
 ]
 
-Be creative, engaging, and ensure each chapter builds toward a satisfying conclusion. The outline should feel like a complete, well-structured story. Keep summaries brief and focused.`;
+Be creative, engaging, and ensure each chapter builds toward a satisfying conclusion. The outline should feel like a complete, well-structured story.`;
 
     try {
-      const response = await this.openai.chat.completions.create({
-        model: 'gpt-4o', // Use GPT-4 for best logical reasoning
-        messages: [{ role: 'user', content: outlinePrompt }],
-        max_tokens: 800, // Reduced from 4000 - outlines should be concise
-        temperature: 0.3, // Lower temperature for more structured outline
-      });
+      console.log(`🎯 Creating outline for "${title}" - ${chapters} chapters`);
+      
+      const response = await this.makeOpenAIRequest(async () => {
+        return await this.openai.chat.completions.create({
+          model: 'gpt-4o', // Use GPT-4 for best logical reasoning
+          messages: [{ role: 'user', content: outlinePrompt }],
+          max_tokens: 4000,
+          temperature: 0.3, // Lower temperature for more structured outline
+        });
+      }, 'outline creation');
 
       const content = response.choices[0].message.content;
       
@@ -286,12 +297,14 @@ Write the complete chapter now. Do not include chapter headers or numbering - ju
     try {
       if (onProgress) onProgress(`Writing Chapter ${chapterNumber}: ${chapterOutline.title}`);
 
-      const response = await this.openai.chat.completions.create({
-        model: 'gpt-4o', // Use GPT-4 for best creative writing
-        messages: [{ role: 'user', content: chapterPrompt }],
-        max_tokens: Math.min(4000, Math.ceil(maxWords * 1.3)), // Increased token allocation for longer content
-        temperature: isRetry ? 0.7 : 0.8, // Slightly lower temperature on retry for more focused output
-      });
+      const response = await this.makeOpenAIRequest(async () => {
+        return await this.openai.chat.completions.create({
+          model: 'gpt-4o', // Use GPT-4 for best creative writing
+          messages: [{ role: 'user', content: chapterPrompt }],
+          max_tokens: Math.min(4000, Math.ceil(maxWords * 1.3)), // Increased token allocation for longer content
+          temperature: isRetry ? 0.7 : 0.8, // Slightly lower temperature on retry for more focused output
+        });
+      }, `chapter ${chapterNumber} generation`);
 
       const content = response.choices[0].message.content.trim();
       const wordCount = content.split(/\s+/).length;
@@ -322,8 +335,9 @@ Write the complete chapter now. Do not include chapter headers or numbering - ju
   }
 
   // Create and manage generation jobs
-  async createJob(storyData, preferences) {
+  createJob(storyData, preferences) {
     const jobId = `job_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+    
     const job = {
       id: jobId,
       status: 'initialized',
@@ -337,113 +351,45 @@ Write the complete chapter now. Do not include chapter headers or numbering - ju
       startTime: new Date(),
       currentProcess: 'Initializing...'
     };
-    
-    try {
-      if (this.mongoReady) {
-        await mongoClient.createJob(job);
-        console.log(`📝 Job ${jobId} stored in MongoDB`);
-      } else {
-        // Fallback to in-memory storage
-        this.jobs.set(jobId, job);
-        console.log(`📝 Job ${jobId} created in memory (MongoDB fallback)`);
-      }
-      return jobId;
-    } catch (error) {
-      console.error('Job creation error:', error);
-      // Always fallback to memory if MongoDB fails
+
+    this.jobs.set(jobId, job);
+    return jobId;
+  }
+
+  getJob(jobId) {
+    return this.jobs.get(jobId);
+  }
+
+  updateJob(jobId, updates) {
+    const job = this.jobs.get(jobId);
+    if (job) {
+      Object.assign(job, updates);
       this.jobs.set(jobId, job);
-      console.log(`📝 Job ${jobId} created in memory (MongoDB error fallback)`);
-      return jobId;
     }
   }
 
-  async getJob(jobId) {
-    try {
-      if (this.mongoReady) {
-        return await mongoClient.getJob(jobId);
-      } else {
-        // Fallback to in-memory storage
-        return this.jobs.get(jobId) || null;
-      }
-    } catch (error) {
-      console.error('MongoDB getJob error:', error);
-      // Fallback to memory
-      return this.jobs.get(jobId) || null;
-    }
+  deleteJob(jobId) {
+    this.jobs.delete(jobId);
   }
 
-  async updateJob(jobId, updates) {
-    try {
-      if (this.mongoReady) {
-        await mongoClient.updateJob(jobId, updates);
-        console.log(`📝 Job ${jobId} updated in MongoDB`);
-      } else {
-        // Fallback to in-memory storage
-        const job = this.jobs.get(jobId);
-        if (job) {
-          Object.assign(job, updates);
-          this.jobs.set(jobId, job);
-          console.log(`📝 Job ${jobId} updated in memory (MongoDB fallback)`);
-        }
-      }
-    } catch (error) {
-      console.error('MongoDB updateJob error:', error);
-      // Always ensure fallback works
-      const job = this.jobs.get(jobId);
-      if (job) {
-        Object.assign(job, updates);
-        this.jobs.set(jobId, job);
-        console.log(`📝 Job ${jobId} updated in memory (MongoDB error fallback)`);
-      } else {
-        console.error(`❌ Job ${jobId} not found in memory fallback!`);
-      }
-    }
-  }
-
-  async deleteJob(jobId) {
-    try {
-      if (this.mongoReady) {
-        await mongoClient.deleteJob(jobId);
-      } else {
-        // Fallback to in-memory storage
-        this.jobs.delete(jobId);
-      }
-    } catch (error) {
-      console.error('MongoDB deleteJob error:', error);
-      // Fallback to memory
-      this.jobs.delete(jobId);
-    }
-  }
-
-  // Debug method to check job status
-  async debugJobStatus(jobId) {
-    console.log(`🔍 Debug: Checking job ${jobId}`);
-    console.log(`🔍 MongoDB ready: ${this.mongoReady}`);
-    console.log(`🔍 In-memory jobs count: ${this.jobs.size}`);
-    
-    try {
-      const job = await this.getJob(jobId);
-      if (job) {
-        console.log(`🔍 Job found: ${job.status}, process: ${job.currentProcess}`);
-        console.log(`🔍 Progress: ${job.progress}%, chapters: ${job.chaptersCompleted}/${job.storyData?.chapters || 'unknown'}`);
-        console.log(`🔍 Logs count: ${job.logs?.length || 0}`);
-      } else {
-        console.log(`🔍 Job not found in storage`);
-      }
-      return job;
-    } catch (error) {
-      console.error(`🔍 Error checking job:`, error);
-      return null;
-    }
-  }
-
-  // Process a generation job
+  // Process a generation job with timeout protection
   async processAdvancedGeneration(jobId) {
-    const job = await this.getJob(jobId);
+    const job = this.getJob(jobId);
     if (!job) throw new Error('Job not found');
 
+    // Set up timeout protection (45 minutes max)
+    const GENERATION_TIMEOUT = 45 * 60 * 1000; // 45 minutes
+    const timeoutId = setTimeout(() => {
+      console.error(`⏰ Job ${jobId} timed out after 45 minutes`);
+      this.updateJob(jobId, {
+        status: 'failed',
+        error: 'Generation timed out after 45 minutes',
+        currentProcess: 'Timed out'
+      });
+    }, GENERATION_TIMEOUT);
+
     try {
-      await this.updateJob(jobId, { 
+      this.updateJob(jobId, { 
         status: 'running', 
         currentProcess: 'Creating detailed story outline...' 
       });
@@ -451,297 +397,105 @@ Write the complete chapter now. Do not include chapter headers or numbering - ju
       // Create outline if not provided
       let outline = job.storyData.outline;
       if (!outline || outline.length === 0) {
-        console.log(`📋 Creating outline for job ${jobId}...`);
         outline = await this.createOutline(job.storyData);
-        const jobAfterOutline = await this.getJob(jobId);
-        await this.updateJob(jobId, { 
+        this.updateJob(jobId, { 
           currentProcess: 'Outline created, beginning chapter generation...',
-          logs: [...(jobAfterOutline?.logs || []), { message: 'Story outline created', type: 'success', timestamp: new Date() }]
+          logs: [...job.logs, { message: 'Story outline created', type: 'success', timestamp: new Date() }]
         });
-        console.log(`✅ Outline created with ${outline.length} chapters`);
       }
 
-      // Railway container timeout protection - start generation immediately
-      console.log(`🚀 Starting immediate chapter generation for job ${jobId}`);
-      console.log(`📋 Outline ready with ${outline.length} chapters for background processing`);
-      console.log(`⚠️ About to call setTimeout for background generation...`);
-      
-      // Use setTimeout instead of setImmediate for better compatibility
-      setTimeout(async () => {
-        console.log(`🎬 setTimeout callback executed for job ${jobId}`);
-        console.log(`🚨 CRITICAL DEBUG: About to start background generation!`);
-        console.log(`🚨 Outline length: ${outline.length}`);
-        console.log(`🚨 Outline sample: ${JSON.stringify(outline[0], null, 2)}`);
-        
-        try {
-          // Double-check job exists before starting generation
-          const jobCheck = await this.getJob(jobId);
-          if (!jobCheck) {
-            console.error(`❌ Job ${jobId} not found in setTimeout callback`);
-            return;
-          }
-          
-          console.log(`⚡ Background generation starting for job ${jobId}...`);
-          console.log(`📝 Job status: ${jobCheck.status}, outline length: ${outline.length}`);
-          console.log(`🚨 CALLING generateChaptersWithTimeoutProtection NOW!`);
-          
-          await this.generateChaptersWithTimeoutProtection(jobId, outline);
-          console.log(`🚨 generateChaptersWithTimeoutProtection COMPLETED!`);
-        } catch (error) {
-          console.error(`❌ Background generation error for job ${jobId}:`, error);
-          console.error(`❌ Error stack:`, error.stack);
-          
-          try {
-            const jobLatest = await this.getJob(jobId);
-            await this.updateJob(jobId, {
-              status: 'failed',
-              error: error.message,
-              currentProcess: 'Background generation failed',
-              logs: [...(jobLatest?.logs || []), { 
-                message: `Background generation error: ${error.message}`, 
-                type: 'error', 
-                timestamp: new Date() 
-              }]
-            });
-          } catch (updateError) {
-            console.error(`❌ Failed to update job with error status:`, updateError);
-          }
-        }
-      }, 100); // Start after 100ms to ensure response is sent
-      
-      console.log(`✅ setTimeout scheduled, returning immediately to frontend`);
-
-      // Return immediately to prevent Railway timeout
-      return {
-        jobId: jobId,
-        status: 'running',
-        message: 'Chapter generation started in background'
-      };
-
-    } catch (error) {
-      console.error(`Job ${jobId} failed:`, error);
-      const jobLatest = await this.getJob(jobId);
-      await this.updateJob(jobId, {
-        status: 'failed',
-        error: error.message,
-        currentProcess: 'Generation failed',
-        logs: [...(jobLatest?.logs || []), { 
-          message: `Generation failed: ${error.message}`, 
-          type: 'error', 
-          timestamp: new Date() 
-        }]
-      });
-      throw error;
-    }
-  }
-
-  // Generate chapters with timeout protection for Railway
-  async generateChaptersWithTimeoutProtection(jobId, outline) {
-    console.log(`🎬 Background generation function called for job ${jobId}`);
-    console.log(`📋 Outline validation: ${outline ? `${outline.length} chapters` : 'null/undefined'}`);
-    console.log(`🚨 ENTERING generateChaptersWithTimeoutProtection!`);
-    console.log(`🚨 Function parameters: jobId=${jobId}, outline length=${outline?.length}`);
-    
-    // Validate outline before proceeding
-    if (!outline || !Array.isArray(outline) || outline.length === 0) {
-      console.error(`❌ Invalid outline for job ${jobId}: ${outline}`);
-      throw new Error('Invalid or empty outline provided');
-    }
-    
-    console.log(`🚨 Outline validation passed! Getting job...`);
-    
-    const job = await this.getJob(jobId);
-    if (!job) {
-      console.error(`❌ Job ${jobId} not found in background generation`);
-      throw new Error(`Job ${jobId} not found`);
-    }
-
-    console.log(`🔍 Job found: ${job.id}, status: ${job.status}`);
-    console.log(`📊 Job data validation: storyData=${!!job.storyData}, title=${job.storyData?.title}`);
-    console.log(`🚨 About to start chapter generation loop!`);
-
-    try {
       const totalChapters = outline.length;
-      
-      // 🚨 CONTAINER RESTART RECOVERY: Resume from where we left off
-      const existingChapters = job.chapters || [];
-      const startChapterIndex = job.chaptersCompleted || 0;
-      const chapters = [...existingChapters]; // Start with existing chapters
-      
-      console.log(`📚 Starting/resuming generation: ${totalChapters} total chapters, resuming from chapter ${startChapterIndex + 1}`);
-      console.log(`📚 Already completed: ${existingChapters.length} chapters`);
-      
-      // Update job status to indicate background processing started/resumed
-      await this.updateJob(jobId, {
-        status: 'generating',
-        currentProcess: startChapterIndex === 0 ? 
-          `Background generation started - ${totalChapters} chapters to generate` :
-          `Background generation resumed - continuing from chapter ${startChapterIndex + 1} of ${totalChapters}`,
-        logs: [...(job.logs || []), { 
-          message: startChapterIndex === 0 ?
-            `Background generation started - ${totalChapters} chapters planned` :
-            `Background generation resumed from chapter ${startChapterIndex + 1}`, 
-          type: 'info', 
-          timestamp: new Date() 
-        }]
-      });
+      const chapters = [];
 
-      // Generate remaining chapters iteratively
-      for (let i = startChapterIndex; i < totalChapters; i++) {
+      // Generate each chapter iteratively
+      for (let i = 0; i < totalChapters; i++) {
         const chapterNumber = i + 1;
         const chapterOutline = outline[i];
-        console.log(`📝 Starting Chapter ${chapterNumber}: ${chapterOutline.title}`);
-        // Update progress frequently to show we're alive
-        const jobCurrent = await this.getJob(jobId);
-        await this.updateJob(jobId, {
+
+        this.updateJob(jobId, {
           currentChapter: chapterNumber,
-          currentProcess: `Writing Chapter ${chapterNumber}: ${chapterOutline.title}`,
-          logs: [...(jobCurrent?.logs || []), { 
+          currentProcess: `Planning Chapter ${chapterNumber}: ${chapterOutline.title}`,
+          logs: [...this.getJob(jobId).logs, { 
             message: `Starting Chapter ${chapterNumber}: ${chapterOutline.title}`, 
             type: 'info', 
             timestamp: new Date() 
           }]
         });
 
-        try {
-          let chapter = await this.generateChapterAdvanced({
+        let chapter = await this.generateChapterAdvanced({
+          chapterNumber,
+          chapterOutline,
+          storyData: job.storyData,
+          previousChapters: chapters,
+          onProgress: (message) => {
+            this.updateJob(jobId, { currentProcess: message });
+          }
+        });
+
+        // Check if chapter meets word count requirements and retry if needed
+        const targetWordCount = job.storyData.targetChapterLength || 1500;
+        const minWordCount = targetWordCount * 0.75; // 75% of target minimum
+        const maxRetries = 2;
+        let retryCount = 0;
+
+        while (chapter.wordCount < minWordCount && retryCount < maxRetries) {
+          retryCount++;
+          console.log(`⚠️ Chapter ${chapterNumber} word count too low: ${chapter.wordCount} words (target: ${targetWordCount}). Retry ${retryCount}/${maxRetries}`);
+          
+          this.updateJob(jobId, {
+            currentProcess: `Chapter ${chapterNumber} too short (${chapter.wordCount} words), regenerating to meet ${targetWordCount} word target...`,
+            logs: [...this.getJob(jobId).logs, { 
+              message: `Chapter ${chapterNumber} retry ${retryCount}/${maxRetries} - ${chapter.wordCount} words too short`, 
+              type: 'warning', 
+              timestamp: new Date() 
+            }]
+          });
+
+          chapter = await this.generateChapterAdvanced({
             chapterNumber,
             chapterOutline,
             storyData: job.storyData,
             previousChapters: chapters,
-            onProgress: async (message) => {
-              await this.updateJob(jobId, { currentProcess: message });
-              console.log(`📈 Progress: ${message}`);
+            isRetry: true,
+            previousWordCount: chapter.wordCount,
+            targetWordCount: targetWordCount,
+            onProgress: (message) => {
+              this.updateJob(jobId, { currentProcess: message });
             }
           });
+        }
 
-          console.log(`✅ Chapter ${chapterNumber} generated: ${chapter.wordCount} words`);
-          // Check if chapter meets word count requirements and retry if needed
-          const targetWordCount = job.storyData.targetChapterLength || 1500;
-          const minWordCount = targetWordCount * 0.75; // 75% of target minimum
-          const maxRetries = 2;
-          let retryCount = 0;
-
-          while (chapter.wordCount < minWordCount && retryCount < maxRetries) {
-            retryCount++;
-            console.log(`⚠️ Chapter ${chapterNumber} word count too low: ${chapter.wordCount} words (target: ${targetWordCount}). Retry ${retryCount}/${maxRetries}`);
-            const jobRetry = await this.getJob(jobId);
-            await this.updateJob(jobId, {
-              currentProcess: `Chapter ${chapterNumber} too short (${chapter.wordCount} words), regenerating to meet ${targetWordCount} word target...`,
-              logs: [...(jobRetry?.logs || []), { 
-                message: `Chapter ${chapterNumber} retry ${retryCount}/${maxRetries} - ${chapter.wordCount} words too short`, 
-                type: 'warning', 
-                timestamp: new Date() 
-              }]
-            });
-
-            chapter = await this.generateChapterAdvanced({
-              chapterNumber,
-              chapterOutline,
-              storyData: job.storyData,
-              previousChapters: chapters,
-              isRetry: true,
-              previousWordCount: chapter.wordCount,
-              targetWordCount: targetWordCount,
-              onProgress: async (message) => {
-                await this.updateJob(jobId, { currentProcess: message });
-                console.log(`🔄 Retry Progress: ${message}`);
-              }
-            });
-          }
-
-          if (chapter.wordCount < minWordCount) {
-            console.log(`⚠️ Chapter ${chapterNumber} still under target after ${maxRetries} retries: ${chapter.wordCount} words`);
-            const jobWarn = await this.getJob(jobId);
-            await this.updateJob(jobId, {
-              logs: [...(jobWarn?.logs || []), { 
-                message: `Chapter ${chapterNumber} completed at ${chapter.wordCount} words (below target but proceeding)`, 
-                type: 'warning', 
-                timestamp: new Date() 
-              }]
-            });
-          } else {
-            console.log(`✅ Chapter ${chapterNumber} completed successfully: ${chapter.wordCount} words`);
-            const jobSuccess = await this.getJob(jobId);
-            await this.updateJob(jobId, {
-              logs: [...(jobSuccess?.logs || []), { 
-                message: `Chapter ${chapterNumber} completed successfully (${chapter.wordCount} words)`, 
-                type: 'success', 
-                timestamp: new Date() 
-              }]
-            });
-          }
-
-          chapters.push(chapter);
-
-          const progress = (chapterNumber / totalChapters) * 100;
-          const jobProg = await this.getJob(jobId);
-          
-          // 🚨 CONTAINER RESTART RECOVERY: Store chapters in job for persistence
-          await this.updateJob(jobId, {
-            progress,
-            chaptersCompleted: chapterNumber,
-            chapters: chapters, // 🚨 CRITICAL: Store chapters in MongoDB for recovery
-            currentProcess: `Chapter ${chapterNumber} completed (${chapter.wordCount} words) - ${Math.round(progress)}% done`,
-            logs: [...(jobProg?.logs || []), { 
-              message: `Chapter ${chapterNumber} completed (${chapter.wordCount} words) - ${Math.round(progress)}% done`, 
-              type: 'success', 
+        if (chapter.wordCount < minWordCount) {
+          console.log(`⚠️ Chapter ${chapterNumber} still under target after ${maxRetries} retries: ${chapter.wordCount} words`);
+          this.updateJob(jobId, {
+            logs: [...this.getJob(jobId).logs, { 
+              message: `Chapter ${chapterNumber} completed at ${chapter.wordCount} words (below target but proceeding)`, 
+              type: 'warning', 
               timestamp: new Date() 
             }]
           });
+        }
 
-          // Add delay between chapters to prevent rate limiting and show progress
-          console.log(`⏳ Waiting 2 seconds before next chapter...`);
-          await new Promise(resolve => setTimeout(resolve, 2000));
-          
-        } catch (chapterError) {
-          console.error(`❌ Error generating chapter ${chapterNumber}:`, chapterError);
-          const jobErr = await this.getJob(jobId);
-          await this.updateJob(jobId, {
-            logs: [...(jobErr?.logs || []), { 
-              message: `Chapter ${chapterNumber} generation failed: ${chapterError.message}`, 
-              type: 'error', 
-              timestamp: new Date() 
-            }]
-          });
-          
-          // Only stop on truly fatal errors, continue for recoverable errors
-          if (chapterError.message.includes('OpenAI API key not configured') || 
-              chapterError.message.includes('rate limit') ||
-              chapterError.message.includes('quota exceeded')) {
-            console.error(`💀 Fatal error detected, stopping generation: ${chapterError.message}`);
-            throw chapterError; // Stop generation for fatal errors
-          } else {
-            console.warn(`⚠️ Non-fatal error in chapter ${chapterNumber}, continuing to next chapter: ${chapterError.message}`);
-            // Create a placeholder chapter so we can continue
-            const placeholderChapter = {
-              title: chapterOutline.title,
-              content: `[Chapter ${chapterNumber} generation failed: ${chapterError.message}. Please regenerate this chapter manually.]`,
-              wordCount: 50,
-              summary: chapterOutline.summary,
-              number: chapterNumber,
-              targetMet: false,
-              error: chapterError.message
-            };
-            chapters.push(placeholderChapter);
-            
-            const progress = (chapterNumber / totalChapters) * 100;
-            const jobProgErr = await this.getJob(jobId);
-            await this.updateJob(jobId, {
-              progress,
-              chaptersCompleted: chapterNumber,
-              currentProcess: `Chapter ${chapterNumber} failed, continuing to next chapter...`,
-              logs: [...(jobProgErr?.logs || []), { 
-                message: `Chapter ${chapterNumber} failed but continuing generation`, 
-                type: 'warning', 
-                timestamp: new Date() 
-              }]
-            });
-            
-            // Add delay before continuing
-            console.log(`⏳ Waiting 3 seconds before continuing to next chapter...`);
-            await new Promise(resolve => setTimeout(resolve, 3000));
-          }
+        chapters.push(chapter);
+
+        const progress = (chapterNumber / totalChapters) * 100;
+        this.updateJob(jobId, {
+          progress,
+          chaptersCompleted: chapterNumber,
+          currentProcess: `Chapter ${chapterNumber} completed (${chapter.wordCount} words)`,
+          logs: [...this.getJob(jobId).logs, { 
+            message: `Chapter ${chapterNumber} completed (${chapter.wordCount} words)`, 
+            type: 'success', 
+            timestamp: new Date() 
+          }]
+        });
+
+        // Small delay to prevent rate limiting and reduce memory pressure
+        await new Promise(resolve => setTimeout(resolve, 2000)); // 2 second delay
+        
+        // Memory management: clear large data after each chapter to prevent accumulation
+        if (global.gc) {
+          global.gc(); // Force garbage collection if available
         }
       }
 
@@ -754,35 +508,37 @@ Write the complete chapter now. Do not include chapter headers or numbering - ju
         completedAt: new Date().toISOString(),
         outline: outline
       };
-      const jobFinal = await this.getJob(jobId);
-      await this.updateJob(jobId, {
+
+      this.updateJob(jobId, {
         status: 'completed',
         progress: 100,
         result: result,
         currentProcess: 'Generation complete!',
-        logs: [...(jobFinal?.logs || []), { 
+        logs: [...this.getJob(jobId).logs, { 
           message: `Novel generation completed! ${chapters.length} chapters, ${totalWords.toLocaleString()} words`, 
           type: 'success', 
           timestamp: new Date() 
         }]
       });
 
-      console.log(`🎉 Job ${jobId} completed successfully! ${chapters.length} chapters, ${totalWords.toLocaleString()} words`);
       return result;
-      
+      return result;
     } catch (error) {
-      console.error(`❌ Background generation failed for job ${jobId}:`, error);
-      const jobErr = await this.getJob(jobId);
-      await this.updateJob(jobId, {
+      console.error(`Job ${jobId} failed:`, error);
+      this.updateJob(jobId, {
         status: 'failed',
         error: error.message,
         currentProcess: 'Generation failed',
-        logs: [...(jobErr?.logs || []), { 
-          message: `Background generation failed: ${error.message}`, 
+        logs: [...this.getJob(jobId).logs, { 
+          message: `Generation failed: ${error.message}`, 
           type: 'error', 
           timestamp: new Date() 
         }]
       });
+      throw error;
+    } finally {
+      // Always clear the timeout
+      clearTimeout(timeoutId);
     }
   }
 

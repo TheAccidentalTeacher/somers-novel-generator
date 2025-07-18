@@ -145,27 +145,38 @@ class APIService {
 
   async testConnection() {
     try {
-      // Test connection using the lightweight health endpoint - NO AI CALLS!
+      // Test connection using the health endpoint
       const response = await this.makeRequest('/health', {
         method: 'GET'
       });
 
-      return {
-        status: 'connected',
-        message: 'Backend connected successfully',
-        timestamp: new Date().toISOString()
-      };
-    } catch (error) {
-      // Even if the request fails, if we get a proper API response (like validation error),
-      // it means the connection is working
-      if (error.status && error.status >= 400 && error.status < 500) {
+      console.log('🔍 Backend health check result:', response);
+
+      if (response.success) {
         return {
           status: 'connected',
-          message: 'Backend connected (API validation as expected)',
-          timestamp: new Date().toISOString()
+          message: response.message || 'Backend connected successfully',
+          timestamp: response.timestamp,
+          details: {
+            openai: response.openai?.status || 'unknown',
+            environment: response.environment || 'unknown',
+            version: response.version || 'unknown'
+          }
         };
+      } else {
+        throw new APIError('Health check returned unsuccessful status', 0, response);
       }
-      throw new APIError('Backend connection failed', 0, error.message);
+    } catch (error) {
+      console.error('❌ Backend connection test failed:', error);
+      
+      // Provide more detailed error information
+      if (error.status === 0) {
+        throw new APIError('Cannot reach backend server - check if backend is running', 0, 'Connection refused');
+      } else if (error.status >= 500) {
+        throw new APIError('Backend server error', error.status, error.details);
+      } else {
+        throw new APIError('Backend connection failed', error.status || 0, error.message);
+      }
     }
   }
 
@@ -197,47 +208,17 @@ class APIService {
   }
 
   async advancedGeneration(storyData) {
-    console.log(`🌐 API SERVICE DEBUG: Starting advanced generation request`);
-    console.log(`🌐 Story data:`, storyData);
-    console.log(`🌐 URL will be: ${this.config.baseUrl}/advancedGeneration`);
-    
-    try {
-      const result = await this.makeRequest('/advancedGeneration', {
-        method: 'POST',
-        body: storyData,
-        timeout: 600000 // 10 minutes for advanced generation
-      });
-      
-      console.log(`🌐 API SERVICE DEBUG: Advanced generation response:`, result);
-      return result;
-    } catch (error) {
-      console.error(`🚨 API SERVICE DEBUG: Advanced generation error:`, error);
-      throw error;
-    }
+    return this.makeRequest('/advancedGeneration', {
+      method: 'POST',
+      body: storyData,
+      timeout: 600000 // 10 minutes for advanced generation
+    });
   }
 
   async getGenerationStatus(jobId) {
-    console.log(`🌐 API SERVICE DEBUG: Getting status for job ${jobId}`);
-    console.log(`🌐 Full URL will be: ${this.config.baseUrl}/advancedGeneration/${jobId}`);
-    
-    try {
-      const result = await this.makeRequest(`/advancedGeneration/${jobId}`, {
-        method: 'GET'
-      });
-      
-      console.log(`🌐 API SERVICE DEBUG: Received result:`, result);
-      console.log(`🌐 Job details:`, {
-        exists: !!result.job,
-        status: result.job?.status,
-        progress: result.job?.progress,
-        currentProcess: result.job?.currentProcess
-      });
-      
-      return result;
-    } catch (error) {
-      console.error(`🚨 API SERVICE DEBUG: Error getting job status:`, error);
-      throw error;
-    }
+    return this.makeRequest(`/advancedGeneration/${jobId}`, {
+      method: 'GET'
+    });
   }
 
   async cancelGeneration(jobId) {
