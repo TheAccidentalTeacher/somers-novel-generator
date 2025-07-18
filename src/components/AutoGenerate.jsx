@@ -1071,8 +1071,12 @@ const AutoGenerate = ({ conflictData, apiConfig, onSuccess, onError, onNotificat
                         className="form-input"
                         min={fictionLengths[selectedLengthCategory].minWords}
                         max={fictionLengths[selectedLengthCategory].maxWords}
-                        value={storySetup.wordCount}
-                        onChange={(e) => setStorySetup(prev => ({ ...prev, wordCount: parseInt(e.target.value) }))}
+                        value={storySetup.wordCount || ''}
+                        onChange={(e) => {
+                          const value = e.target.value;
+                          const parsedValue = value === '' ? 0 : parseInt(value);
+                          setStorySetup(prev => ({ ...prev, wordCount: isNaN(parsedValue) ? 0 : parsedValue }));
+                        }}
                       />
                       <small>Range: {fictionLengths[selectedLengthCategory].range}</small>
                     </div>
@@ -1085,8 +1089,12 @@ const AutoGenerate = ({ conflictData, apiConfig, onSuccess, onError, onNotificat
                         min="500"
                         max="5000"
                         step="100"
-                        value={storySetup.targetChapterLength}
-                        onChange={(e) => setStorySetup(prev => ({ ...prev, targetChapterLength: parseInt(e.target.value) }))}
+                        value={storySetup.targetChapterLength || ''}
+                        onChange={(e) => {
+                          const value = e.target.value;
+                          const parsedValue = value === '' ? 0 : parseInt(value);
+                          setStorySetup(prev => ({ ...prev, targetChapterLength: isNaN(parsedValue) ? 0 : parsedValue }));
+                        }}
                       />
                     </div>
 
@@ -1098,10 +1106,14 @@ const AutoGenerate = ({ conflictData, apiConfig, onSuccess, onError, onNotificat
                         min="100"
                         max="1000"
                         step="50"
-                        value={storySetup.chapterVariance}
-                        onChange={(e) => setStorySetup(prev => ({ ...prev, chapterVariance: parseInt(e.target.value) }))}
+                        value={storySetup.chapterVariance || ''}
+                        onChange={(e) => {
+                          const value = e.target.value;
+                          const parsedValue = value === '' ? 0 : parseInt(value);
+                          setStorySetup(prev => ({ ...prev, chapterVariance: isNaN(parsedValue) ? 0 : parsedValue }));
+                        }}
                       />
-                      <small>Chapters can be ±{storySetup.chapterVariance} words from target</small>
+                      <small>Chapters can be ±{storySetup.chapterVariance || 0} words from target</small>
                     </div>
                   </div>
 
