@@ -395,7 +395,9 @@ const AutoGenerate = ({ conflictData, apiConfig, onSuccess, onError, onNotificat
     if (generationPhase === 'setup') {
       console.log('🎯 DEBUG: Switching to planning phase');
       setGenerationPhase('planning');
+      console.log('🎯 DEBUG: About to call createOutline()');
       await createOutline();
+      console.log('🎯 DEBUG: createOutline() completed');
       return;
     }
 
@@ -513,6 +515,13 @@ const AutoGenerate = ({ conflictData, apiConfig, onSuccess, onError, onNotificat
   const createOutline = async () => {
     try {
       console.log('🔍 DEBUG: Starting outline creation...');
+      console.log('🔍 DEBUG: storySetup state:', storySetup);
+      console.log('🔍 DEBUG: Required fields check:');
+      console.log('  - title:', storySetup.title);
+      console.log('  - synopsis:', storySetup.synopsis);
+      console.log('  - genre:', storySetup.genre);
+      console.log('  - subgenre:', storySetup.subgenre);
+      
       setCurrentProcess('Analyzing your synopsis with GPT-4...');
       
       const outlineData = {
