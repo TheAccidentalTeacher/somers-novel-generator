@@ -301,9 +301,11 @@ Write the complete chapter now. Do not include chapter headers or numbering - ju
       // Railway container timeout protection - start generation immediately
       console.log(`🚀 Starting immediate chapter generation for job ${jobId}`);
       console.log(`📋 Outline ready with ${outline.length} chapters for background processing`);
+      console.log(`⚠️ About to call setTimeout for background generation...`);
       
       // Use setTimeout instead of setImmediate for better compatibility
       setTimeout(async () => {
+        console.log(`🎬 setTimeout callback executed for job ${jobId}`);
         try {
           console.log(`⚡ Background generation starting for job ${jobId}...`);
           await this.generateChaptersWithTimeoutProtection(jobId, outline);
@@ -321,6 +323,8 @@ Write the complete chapter now. Do not include chapter headers or numbering - ju
           });
         }
       }, 100); // Start after 100ms to ensure response is sent
+      
+      console.log(`✅ setTimeout scheduled, returning immediately to frontend`);
 
       // Return immediately to prevent Railway timeout
       return {
