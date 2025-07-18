@@ -239,12 +239,13 @@ app.use('*', (req, res) => {
 
 // Start server
 app.listen(PORT, () => {
-  console.log(`🚀 Somers Novel Generator backend running on port ${PORT}`);
-  console.log(`🔧 Environment: ${process.env.NODE_ENV || 'development'}`);
-  console.log(`🤖 OpenAI API: ${process.env.OPENAI_API_KEY ? '✅ Configured' : '❌ Not configured'}`);
-  console.log(`📡 CORS Origins: ${process.env.CORS_ORIGINS || 'Not set'}`);
-  console.log(`🌐 Frontend URL: ${process.env.FRONTEND_URL || 'Not set'}`);
-  console.log(`🔒 CORS Configuration: ✅ Bulletproof CORS enabled`);
+  console.log('🚀 Somers Novel Generator backend running on port ' + PORT);
+  console.log('🔧 Environment:', process.env.NODE_ENV || 'development');
+  console.log('🤖 OpenAI API:', process.env.OPENAI_API_KEY ? '✅ Configured' : '❌ Not configured');
+  console.log('📡 CORS Origins:', process.env.CORS_ORIGINS || 'Not set');
+  console.log('🌐 Frontend URL:', process.env.FRONTEND_URL || 'Not set');
+  console.log('🔒 CORS Configuration: ✅ Bulletproof CORS enabled');
+  console.log('⚡ Rate Limiting: ❌ Disabled (single-user app)');
 });
 
 export default app;
