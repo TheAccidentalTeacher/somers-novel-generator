@@ -7,8 +7,6 @@ const router = express.Router();
 router.post('/createOutline', async (req, res) => {
   try {
     console.log('📋 Creating outline...');
-    console.log('🔍 Request body synopsis length:', req.body.synopsis?.length || 'undefined');
-    console.log('🔍 Request body synopsis preview:', req.body.synopsis?.substring(0, 200) || 'undefined');
     
     const {
       title,
@@ -22,32 +20,46 @@ router.post('/createOutline', async (req, res) => {
       fictionLength
     } = req.body;
 
-    console.log('🔍 After destructuring synopsis length:', synopsis?.length || 'undefined');
-
-    // Validate required fields
-    if (!title || !genre || !synopsis || !chapters) {
+    // Validate required fields with proper types and ranges
+    if (!title || typeof title !== 'string' || title.trim().length === 0) {
       return res.status(400).json({
         success: false,
-        error: 'Missing required fields: title, genre, synopsis, chapters'
+        error: 'Title is required and must be a non-empty string'
+      });
+    }
+    
+    if (!genre || typeof genre !== 'string' || genre.trim().length === 0) {
+      return res.status(400).json({
+        success: false,
+        error: 'Genre is required and must be a non-empty string'
+      });
+    }
+    
+    if (!synopsis || typeof synopsis !== 'string' || synopsis.trim().length < 10) {
+      return res.status(400).json({
+        success: false,
+        error: 'Synopsis is required and must be at least 10 characters'
+      });
+    }
+    
+    if (!chapters || !Number.isInteger(chapters) || chapters < 1 || chapters > 100) {
+      return res.status(400).json({
+        success: false,
+        error: 'Chapters must be an integer between 1 and 100'
+      });
+    }
+    
+    if (wordCount && (!Number.isInteger(wordCount) || wordCount < 1000 || wordCount > 500000)) {
+      return res.status(400).json({
+        success: false,
+        error: 'Word count must be an integer between 1,000 and 500,000'
       });
     }
 
     if (!advancedAI.isConfigured()) {
-      // Provide mock outline for demo purposes
-      console.log('⚠️  AI service not configured, providing demo outline');
-      const mockOutline = Array.from({length: chapters}, (_, i) => ({
-        chapter: i + 1,
-        title: `Chapter ${i + 1}: [Demo Title]`,
-        summary: `This is a demo chapter summary for chapter ${i + 1}. In a real implementation with an OpenAI API key, this would contain a detailed, genre-appropriate chapter outline based on your synopsis.`,
-        wordCount: targetChapterLength,
-        themes: ['Demo Theme'],
-        keyEvents: [`Demo event for chapter ${i + 1}`]
-      }));
-
-      return res.json({
-        success: true,
-        outline: mockOutline,
-        message: 'Demo outline generated (OpenAI API key not configured)'
+      return res.status(503).json({
+        success: false,
+        error: 'AI service not configured. Please check OpenAI API key.'
       });
     }
 
@@ -91,20 +103,32 @@ router.post('/advancedGeneration', async (req, res) => {
     
     const { storyData, preferences, useAdvancedIteration } = req.body;
 
-    if (!storyData || !storyData.title || !storyData.synopsis) {
+    // Enhanced validation for story data
+    if (!storyData || typeof storyData !== 'object') {
       return res.status(400).json({
         success: false,
-        error: 'Missing required story data'
+        error: 'Story data is required and must be an object'
+      });
+    }
+    
+    if (!storyData.title || typeof storyData.title !== 'string' || storyData.title.trim().length === 0) {
+      return res.status(400).json({
+        success: false,
+        error: 'Story title is required and must be a non-empty string'
+      });
+    }
+    
+    if (!storyData.synopsis || typeof storyData.synopsis !== 'string' || storyData.synopsis.trim().length < 10) {
+      return res.status(400).json({
+        success: false,
+        error: 'Story synopsis is required and must be at least 10 characters'
       });
     }
 
     if (!advancedAI.isConfigured()) {
-      // Provide demo response for testing UI flow
-      console.log('⚠️  AI service not configured, providing demo response');
       return res.status(503).json({
         success: false,
-        error: 'Demo Mode: OpenAI API key not configured. This is a demonstration environment. To generate actual content, please configure your OpenAI API key in the environment variables.',
-        isDemoMode: true
+        error: 'AI service not configured. Please check OpenAI API key.'
       });
     }
 
@@ -113,9 +137,15 @@ router.post('/advancedGeneration', async (req, res) => {
     
     console.log(`📝 Advanced generation job created: ${jobId}`);
 
-    // Start processing asynchronously
+    // Start processing asynchronously with proper error handling
     advancedAI.processAdvancedGeneration(jobId).catch(error => {
       console.error(`Job ${jobId} processing error:`, error);
+      // Ensure job status is updated on failure
+      advancedAI.updateJob(jobId, {
+        status: 'failed',
+        error: error.message,
+        currentProcess: 'Generation failed'
+      });
     });
 
     res.json({
@@ -133,10 +163,19 @@ router.post('/advancedGeneration', async (req, res) => {
   }
 });
 
-// Get advanced generation job status
+// Get advanced generation job status with validation
 router.get('/advancedGeneration/:jobId', async (req, res) => {
   try {
     const { jobId } = req.params;
+    
+    // Validate job ID format (simple validation for single user)
+    if (!jobId || typeof jobId !== 'string' || jobId.length === 0) {
+      return res.status(400).json({
+        success: false,
+        error: 'Valid job ID is required'
+      });
+    }
+    
     const job = advancedAI.getJob(jobId);
 
     if (!job) {
@@ -174,10 +213,19 @@ router.get('/advancedGeneration/:jobId', async (req, res) => {
   }
 });
 
-// Cancel advanced generation job
+// Cancel advanced generation job with validation
 router.delete('/advancedGeneration/:jobId', async (req, res) => {
   try {
     const { jobId } = req.params;
+    
+    // Validate job ID format
+    if (!jobId || typeof jobId !== 'string' || jobId.length === 0) {
+      return res.status(400).json({
+        success: false,
+        error: 'Valid job ID is required'
+      });
+    }
+    
     const job = advancedAI.getJob(jobId);
 
     if (!job) {
@@ -215,10 +263,25 @@ router.post('/advancedStreamGeneration', async (req, res) => {
     
     const { storyData, preferences } = req.body;
 
-    if (!storyData || !storyData.title || !storyData.synopsis) {
+    // Enhanced validation for streaming story data
+    if (!storyData || typeof storyData !== 'object') {
       return res.status(400).json({
         success: false,
-        error: 'Missing required story data'
+        error: 'Story data is required and must be an object'
+      });
+    }
+    
+    if (!storyData.title || typeof storyData.title !== 'string' || storyData.title.trim().length === 0) {
+      return res.status(400).json({
+        success: false,
+        error: 'Story title is required and must be a non-empty string'
+      });
+    }
+    
+    if (!storyData.synopsis || typeof storyData.synopsis !== 'string' || storyData.synopsis.trim().length < 10) {
+      return res.status(400).json({
+        success: false,
+        error: 'Story synopsis is required and must be at least 10 characters'
       });
     }
 
@@ -233,14 +296,8 @@ router.post('/advancedStreamGeneration', async (req, res) => {
     const streamId = advancedAI.createStream(storyData, preferences);
     
     console.log(`📡 Advanced streaming generation created: ${streamId}`);
-    console.log(`🎯 Story data word targets:`, {
-      wordCount: storyData.wordCount,
-      chapters: storyData.chapters,
-      targetChapterLength: storyData.targetChapterLength,
-      calculatedTarget: storyData.wordCount / storyData.chapters
-    });
 
-    // Start processing asynchronously
+    // Start processing asynchronously with better error handling
     processAdvancedStream(streamId).catch(error => {
       console.error(`Stream ${streamId} processing error:`, error);
       advancedAI.broadcastToStream(streamId, 'error', { error: error.message });
@@ -261,198 +318,58 @@ router.post('/advancedStreamGeneration', async (req, res) => {
   }
 });
 
-// Add a health check endpoint for streaming
-router.get('/streamHealth', (req, res) => {
-  res.writeHead(200, {
-    'Content-Type': 'text/event-stream; charset=utf-8',
-    'Cache-Control': 'no-cache, no-store, must-revalidate, proxy-revalidate',
-    'Connection': 'keep-alive',
-    'Access-Control-Allow-Origin': '*',
-    'X-Accel-Buffering': 'no',
-    // Force HTTP/1.1 to avoid HTTP/2 protocol errors
-    'HTTP': '1.1',
-    'Transfer-Encoding': 'chunked',
-    'X-HTTP-Method-Override': 'GET',
-    'X-Forwarded-Proto': 'http'
-  });
-  
-  res.write(`data: ${JSON.stringify({ 
-    type: 'health', 
-    status: 'ok', 
-    protocol: 'HTTP/1.1',
-    timestamp: Date.now() 
-  })}\n\n`);
-  
-  setTimeout(() => {
-    res.end();
-  }, 1000);
-});
-
-// Improved streaming endpoint with error handling
+// Advanced streaming SSE endpoint with validation
 router.get('/advancedStreamGeneration/:streamId', (req, res) => {
   const { streamId } = req.params;
   
+  // Validate stream ID
+  if (!streamId || typeof streamId !== 'string' || streamId.length === 0) {
+    return res.status(400).json({
+      success: false,
+      error: 'Valid stream ID is required'
+    });
+  }
+  
   console.log(`📡 Client connected to advanced stream: ${streamId}`);
 
-  try {
-    // Force HTTP/1.1 with comprehensive protocol error prevention
-    res.writeHead(200, {
-      'Content-Type': 'text/event-stream; charset=utf-8',
-      'Cache-Control': 'no-cache, no-store, must-revalidate, proxy-revalidate',
-      'Pragma': 'no-cache',
-      'Expires': '0',
-      'Connection': 'keep-alive',
-      'Access-Control-Allow-Origin': '*',
-      'Access-Control-Allow-Headers': 'Cache-Control, Content-Type',
-      'Access-Control-Allow-Methods': 'GET, OPTIONS',
-      'Access-Control-Expose-Headers': 'Content-Type',
-      'X-Accel-Buffering': 'no', // Disable nginx buffering
-      'X-Content-Type-Options': 'nosniff',
-      // Force HTTP/1.1 to avoid HTTP/2 protocol errors
-      'HTTP': '1.1',
-      'Transfer-Encoding': 'chunked',
-      // Additional Railway/HTTP2 protocol error prevention
-      'X-HTTP-Method-Override': 'GET',
-      'X-Forwarded-Proto': 'http',
-      'Upgrade-Insecure-Requests': '0'
-    });
+  // Set up SSE headers (simplified for single user)
+  res.writeHead(200, {
+    'Content-Type': 'text/event-stream',
+    'Cache-Control': 'no-cache',
+    'Connection': 'keep-alive'
+  });
 
-    // Add client to stream
-    advancedAI.addStreamClient(streamId, res);
+  // Add client to stream
+  advancedAI.addStreamClient(streamId, res);
 
-    // Send initial connection message with enhanced fallback
-    const connectionMessage = {
-      type: 'connected',
-      streamId,
-      timestamp: Date.now(),
-      protocolVersion: 'HTTP/1.1',
-      fallback: {
-        usePolling: true,
-        endpoint: `/api/advancedGeneration/${streamId}`,
-        interval: 2000,
-        reason: 'HTTP/2 protocol error prevention'
-      }
-    };
-    
-    res.write(`data: ${JSON.stringify(connectionMessage)}\n\n`);
-    
-    // Send immediate test message to verify connection
-    setTimeout(() => {
-      try {
-        res.write(`data: ${JSON.stringify({ 
-          type: 'process_update', 
-          message: 'Stream connection established successfully with HTTP/1.1!',
-          timestamp: Date.now(),
-          protocol: 'HTTP/1.1'
-        })}\n\n`);
-      } catch (error) {
-        console.error(`📡 Failed to send test message for stream ${streamId}:`, error.message);
-        // Immediately fallback to polling if we can't write
-        advancedAI.broadcastToStream(streamId, 'fallback_required', { 
-          reason: 'Initial write test failed',
-          error: error.message 
-        });
-      }
-    }, 500); // Reduced delay for faster detection
+  // Send initial connection message
+  res.write(`data: ${JSON.stringify({ type: 'connected', streamId })}\n\n`);
 
-    // Send heartbeat every 10 seconds (reduced for faster error detection)
-    const heartbeatInterval = setInterval(() => {
-      try {
-        if (res.writableEnded || res.destroyed) {
-          console.log(`📡 Stream ${streamId} already ended, cleaning up heartbeat`);
-          clearInterval(heartbeatInterval);
-          advancedAI.removeStreamClient(streamId, res);
-          return;
-        }
-        
-        res.write(`data: ${JSON.stringify({ 
-          type: 'heartbeat', 
-          timestamp: Date.now(),
-          streamId,
-          protocol: 'HTTP/1.1'
-        })}\n\n`);
-      } catch (error) {
-        console.log(`📡 Heartbeat failed for stream ${streamId}, switching to polling:`, error.message);
-        clearInterval(heartbeatInterval);
-        advancedAI.removeStreamClient(streamId, res);
-        // Notify the stream to use polling fallback
-        advancedAI.broadcastToStream(streamId, 'fallback_required', { 
-          reason: 'Heartbeat failed - HTTP/2 protocol error detected',
-          error: error.message 
-        });
-      }
-    }, 10000);
-
-    // Handle client disconnect with better logging
-    req.on('close', () => {
-      console.log(`📡 Client disconnected from advanced stream: ${streamId}`);
-      clearInterval(heartbeatInterval);
-      advancedAI.removeStreamClient(streamId, res);
-    });
-
-    // Handle errors with detailed logging
-    req.on('error', (error) => {
-      console.error(`📡 Stream request error for ${streamId}:`, error.message);
-      console.error(`📡 Error type: ${error.name}, Code: ${error.code}`);
-      clearInterval(heartbeatInterval);
-      advancedAI.removeStreamClient(streamId, res);
-    });
-    
-    // Handle response errors
-    res.on('error', (error) => {
-      console.error(`📡 Stream response error for ${streamId}:`, error.message);
-      console.error(`📡 Error type: ${error.name}, Code: ${error.code}`);
-      clearInterval(heartbeatInterval);
-      advancedAI.removeStreamClient(streamId, res);
-    });
-
-  } catch (error) {
-    console.error(`📡 Failed to setup stream ${streamId}:`, error.message);
-    console.error(`📡 Setup error type: ${error.name}, Stack:`, error.stack);
-    
-    // Try to send error response if headers not sent
-    if (!res.headersSent) {
-      res.status(500).json({
-        success: false,
-        error: 'Failed to setup streaming connection',
-        details: error.message,
-        fallback: {
-          usePolling: true,
-          endpoint: `/api/advancedGeneration/${streamId}`,
-          interval: 2000
-        }
-      });
-    }
-  }
+  // Handle client disconnect
+  req.on('close', () => {
+    console.log(`📡 Client disconnected from advanced stream: ${streamId}`);
+    advancedAI.removeStreamClient(streamId, res);
+  });
 });
 
-// Advanced streaming processing function
+// Advanced streaming processing function with timeout protection
 async function processAdvancedStream(streamId) {
-  console.log(`📡 Processing advanced stream: ${streamId}`);
   const stream = advancedAI.getStream(streamId);
   if (!stream) {
-    console.error(`❌ Stream not found: ${streamId}`);
+    console.error(`Stream ${streamId} not found`);
     return;
   }
 
-  try {
-    console.log(`📡 Stream found, checking AI configuration...`);
-    
-    // Check if AI service is configured
-    if (!advancedAI.isConfigured()) {
-      console.log(`⚠️  AI service not configured for stream: ${streamId}`);
-      // Provide mock response for demo purposes
-      advancedAI.broadcastToStream(streamId, 'process_update', { 
-        message: 'Demo Mode: AI service not configured (missing OpenAI API key)' 
-      });
-      
-      advancedAI.broadcastToStream(streamId, 'error', { 
-        error: 'OpenAI API key not configured. This is a demo environment. Please configure your API key to generate actual content.' 
-      });
-      return;
-    }
+  // Set timeout for stream (30 minutes max)
+  const STREAM_TIMEOUT = 30 * 60 * 1000;
+  const timeoutId = setTimeout(() => {
+    console.log(`⏰ Stream ${streamId} timed out`);
+    advancedAI.broadcastToStream(streamId, 'error', { 
+      error: 'Stream timed out after 30 minutes' 
+    });
+  }, STREAM_TIMEOUT);
 
-    console.log(`✅ AI configured, starting outline creation for stream: ${streamId}`);
+  try {
     advancedAI.broadcastToStream(streamId, 'process_update', { 
       message: 'Creating detailed story outline...' 
     });
@@ -460,88 +377,55 @@ async function processAdvancedStream(streamId) {
     // Create outline if not provided
     let outline = stream.storyData.outline;
     if (!outline || outline.length === 0) {
-      console.log(`📋 Creating outline for stream: ${streamId}`);
       outline = await advancedAI.createOutline(stream.storyData);
-      console.log(`✅ Outline created with ${outline.length} chapters for stream: ${streamId}`);
       advancedAI.broadcastToStream(streamId, 'process_update', { 
         message: 'Outline created, beginning chapter generation...' 
       });
-    } else {
-      console.log(`📋 Using existing outline with ${outline.length} chapters for stream: ${streamId}`);
     }
 
     const totalChapters = outline.length;
     const chapters = [];
-
-    console.log(`📝 Starting chapter generation for ${totalChapters} chapters in stream: ${streamId}`);
 
     // Generate each chapter with streaming updates
     for (let i = 0; i < totalChapters; i++) {
       const chapterNumber = i + 1;
       const chapterOutline = outline[i];
 
-      console.log(`📝 Planning Chapter ${chapterNumber}: ${chapterOutline.title} for stream: ${streamId}`);
       advancedAI.broadcastToStream(streamId, 'chapter_planning', {
         chapter: chapterNumber,
         title: chapterOutline.title
       });
 
-      console.log(`✍️  Writing Chapter ${chapterNumber}: ${chapterOutline.title} for stream: ${streamId}`);
       advancedAI.broadcastToStream(streamId, 'chapter_writing', {
         chapter: chapterNumber,
         title: chapterOutline.title
       });
 
-      try {
-        console.log(`🎯 Generating Chapter ${chapterNumber} with targets:`, {
-          title: chapterOutline.title,
-          targetLength: stream.storyData.targetChapterLength,
-          variance: stream.storyData.chapterVariance,
-          minWords: stream.storyData.targetChapterLength - (stream.storyData.chapterVariance || 300),
-          maxWords: stream.storyData.targetChapterLength + (stream.storyData.chapterVariance || 300)
-        });
-        
-        const chapter = await advancedAI.generateChapterAdvanced({
-          chapterNumber,
-          chapterOutline,
-          storyData: stream.storyData,
-          previousChapters: chapters,
-          onProgress: (message) => {
-            console.log(`📝 Chapter ${chapterNumber} progress: ${message}`);
-            advancedAI.broadcastToStream(streamId, 'process_update', { message });
-          }
-        });
+      const chapter = await advancedAI.generateChapterAdvanced({
+        chapterNumber,
+        chapterOutline,
+        storyData: stream.storyData,
+        previousChapters: chapters,
+        onProgress: (message) => {
+          advancedAI.broadcastToStream(streamId, 'process_update', { message });
+        }
+      });
 
-        chapters.push(chapter);
-        console.log(`✅ Chapter ${chapterNumber} completed (${chapter.wordCount} words) for stream: ${streamId}`);
+      chapters.push(chapter);
 
-        // Calculate actual vs target for monitoring
-        const targetLength = stream.storyData.targetChapterLength;
-        const variance = stream.storyData.chapterVariance || 300;
-        const withinTarget = chapter.wordCount >= (targetLength - variance) && chapter.wordCount <= (targetLength + variance);
-        console.log(`📊 Chapter ${chapterNumber} word analysis: ${chapter.wordCount}/${targetLength} words (${withinTarget ? '✅ within target' : '⚠️ off target'})`);
+      advancedAI.broadcastToStream(streamId, 'chapter_complete', {
+        chapter: chapterNumber,
+        title: chapter.title,
+        wordCount: chapter.wordCount,
+        progress: (chapterNumber / totalChapters) * 100
+      });
 
-        advancedAI.broadcastToStream(streamId, 'chapter_complete', {
-          chapter: chapterNumber,
-          title: chapter.title,
-          wordCount: chapter.wordCount,
-          progress: (chapterNumber / totalChapters) * 100
-        });
-
-        // Small delay for streaming effect
-        await new Promise(resolve => setTimeout(resolve, 1000));
-      } catch (chapterError) {
-        console.error(`❌ Error generating Chapter ${chapterNumber} for stream ${streamId}:`, chapterError);
-        advancedAI.broadcastToStream(streamId, 'error', { 
-          error: `Chapter ${chapterNumber} generation failed: ${chapterError.message}` 
-        });
-        return;
-      }
+      // Reduce delay for single user (no rate limiting needed)
+      await new Promise(resolve => setTimeout(resolve, 500));
     }
 
     const totalWords = chapters.reduce((sum, ch) => sum + ch.wordCount, 0);
 
-    console.log(`✅ Advanced streaming generation completed for stream ${streamId}: ${chapters.length} chapters, ${totalWords} words`);
     advancedAI.broadcastToStream(streamId, 'complete', {
       title: stream.storyData.title,
       chapters: chapters,
@@ -550,93 +434,13 @@ async function processAdvancedStream(streamId) {
     });
 
     console.log(`✅ Advanced streaming generation completed: ${streamId}`);
+    clearTimeout(timeoutId); // Clear timeout on success
 
   } catch (error) {
-    console.error(`❌ Advanced streaming generation error for ${streamId}:`, error);
-    console.error(`❌ Error stack:`, error.stack);
+    console.error(`❌ Advanced streaming generation error:`, error);
+    clearTimeout(timeoutId); // Clear timeout on error
     advancedAI.broadcastToStream(streamId, 'error', { error: error.message });
   }
 }
-
-// Legacy endpoints for compatibility with frontend apiService
-router.post('/generateNovel', async (req, res) => {
-  try {
-    console.log('📚 Generating novel (legacy endpoint)...');
-    const { storyData } = req.body;
-
-    if (!storyData) {
-      return res.status(400).json({
-        success: false,
-        error: 'Missing storyData'
-      });
-    }
-
-    if (!advancedAI.isConfigured()) {
-      return res.status(503).json({
-        success: false,
-        error: 'AI service not configured. Please check OpenAI API key.'
-      });
-    }
-
-    // Use advanced generation for better results
-    const jobId = advancedAI.createJob(storyData, {});
-    advancedAI.processAdvancedGeneration(jobId).catch(error => {
-      console.error(`Legacy job ${jobId} processing error:`, error);
-    });
-
-    res.json({
-      success: true,
-      jobId: jobId,
-      message: 'Novel generation started (using advanced system)'
-    });
-
-  } catch (error) {
-    console.error('❌ Legacy generateNovel error:', error);
-    res.status(500).json({
-      success: false,
-      error: error.message
-    });
-  }
-});
-
-router.post('/autoGenerateNovel', async (req, res) => {
-  try {
-    console.log('🤖 Auto-generating novel (legacy endpoint)...');
-    const { conflictData } = req.body;
-
-    if (!conflictData) {
-      return res.status(400).json({
-        success: false,
-        error: 'Missing conflictData'
-      });
-    }
-
-    if (!advancedAI.isConfigured()) {
-      return res.status(503).json({
-        success: false,
-        error: 'AI service not configured. Please check OpenAI API key.'
-      });
-    }
-
-    // Use advanced generation for better results
-    const jobId = advancedAI.createJob(conflictData, {});
-    advancedAI.processAdvancedGeneration(jobId).catch(error => {
-      console.error(`Legacy auto-generation job ${jobId} processing error:`, error);
-    });
-
-    res.json({
-      success: true,
-      jobId: jobId,
-      message: 'Auto-generation started (using advanced system)'
-    });
-
-  } catch (error) {
-    console.error('❌ Legacy autoGenerateNovel error:', error);
-    res.status(500).json({
-      success: false,
-      error: error.message
-    });
-  }
-});
 
 export default router;
