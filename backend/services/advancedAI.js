@@ -1,4 +1,6 @@
+
 import OpenAI from 'openai';
+import redisClient from '../redisClient.js';
 
 class AdvancedAIService {
   constructor() {
@@ -14,9 +16,37 @@ class AdvancedAIService {
       });
     }
     
-    // Job storage (in production, use Redis or database)
-    this.jobs = new Map();
+    // Job storage now uses Redis
     this.streams = new Map();
+    this.redisReady = false;
+    
+    // Check if Redis is already connected, if not connect
+    this.initializeRedis();
+  }
+
+  async initializeRedis() {
+    try {
+      // Check if already connected
+      if (redisClient.isReady) {
+        this.redisReady = true;
+        console.log('✅ Redis already connected');
+        return;
+      }
+
+      // Try to connect
+      await redisClient.connect();
+      this.redisReady = true;
+      console.log('✅ Redis client connected');
+    } catch (err) {
+      // Redis might already be connecting/connected
+      if (err.message?.includes('already') || redisClient.isReady) {
+        this.redisReady = true;
+        console.log('✅ Redis connection established');
+      } else {
+        console.error('❌ Redis connection error:', err);
+        this.redisReady = false;
+      }
+    }
   }
 
   isConfigured() {
@@ -238,9 +268,12 @@ Write the complete chapter now. Do not include chapter headers or numbering - ju
   }
 
   // Create and manage generation jobs
-  createJob(storyData, preferences) {
-    const jobId = `job_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+  async createJob(storyData, preferences) {
+    if (!this.redisReady) {
+      await this.initializeRedis();
+    }
     
+    const jobId = `job_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
     const job = {
       id: jobId,
       status: 'initialized',
@@ -254,34 +287,68 @@ Write the complete chapter now. Do not include chapter headers or numbering - ju
       startTime: new Date(),
       currentProcess: 'Initializing...'
     };
-
-    this.jobs.set(jobId, job);
-    return jobId;
-  }
-
-  getJob(jobId) {
-    return this.jobs.get(jobId);
-  }
-
-  updateJob(jobId, updates) {
-    const job = this.jobs.get(jobId);
-    if (job) {
-      Object.assign(job, updates);
-      this.jobs.set(jobId, job);
+    
+    try {
+      await redisClient.set(`job:${jobId}`, JSON.stringify(job));
+      return jobId;
+    } catch (error) {
+      console.error('Redis createJob error:', error);
+      throw new Error('Failed to create job in Redis');
     }
   }
 
-  deleteJob(jobId) {
-    this.jobs.delete(jobId);
+  async getJob(jobId) {
+    if (!this.redisReady) {
+      await this.initializeRedis();
+    }
+    
+    try {
+      const data = await redisClient.get(`job:${jobId}`);
+      return data ? JSON.parse(data) : null;
+    } catch (error) {
+      console.error('Redis getJob error:', error);
+      return null;
+    }
+  }
+
+  async updateJob(jobId, updates) {
+    if (!this.redisReady) {
+      await this.initializeRedis();
+    }
+    
+    try {
+      const data = await redisClient.get(`job:${jobId}`);
+      if (data) {
+        const job = JSON.parse(data);
+        Object.assign(job, updates);
+        await redisClient.set(`job:${jobId}`, JSON.stringify(job));
+      }
+    } catch (error) {
+      console.error('Redis updateJob error:', error);
+      // Don't throw here as this is often called in background
+    }
+  }
+
+  async deleteJob(jobId) {
+    if (!this.redisReady) {
+      await this.initializeRedis();
+    }
+    
+    try {
+      await redisClient.del(`job:${jobId}`);
+    } catch (error) {
+      console.error('Redis deleteJob error:', error);
+      // Don't throw here as cleanup operations should be non-blocking
+    }
   }
 
   // Process a generation job
   async processAdvancedGeneration(jobId) {
-    const job = this.getJob(jobId);
+    const job = await this.getJob(jobId);
     if (!job) throw new Error('Job not found');
 
     try {
-      this.updateJob(jobId, { 
+      await this.updateJob(jobId, { 
         status: 'running', 
         currentProcess: 'Creating detailed story outline...' 
       });
@@ -291,9 +358,10 @@ Write the complete chapter now. Do not include chapter headers or numbering - ju
       if (!outline || outline.length === 0) {
         console.log(`📋 Creating outline for job ${jobId}...`);
         outline = await this.createOutline(job.storyData);
-        this.updateJob(jobId, { 
+        const jobAfterOutline = await this.getJob(jobId);
+        await this.updateJob(jobId, { 
           currentProcess: 'Outline created, beginning chapter generation...',
-          logs: [...this.getJob(jobId).logs, { message: 'Story outline created', type: 'success', timestamp: new Date() }]
+          logs: [...(jobAfterOutline?.logs || []), { message: 'Story outline created', type: 'success', timestamp: new Date() }]
         });
         console.log(`✅ Outline created with ${outline.length} chapters`);
       }
@@ -311,11 +379,12 @@ Write the complete chapter now. Do not include chapter headers or numbering - ju
           await this.generateChaptersWithTimeoutProtection(jobId, outline);
         } catch (error) {
           console.error(`❌ Background generation error for job ${jobId}:`, error);
-          this.updateJob(jobId, {
+          const jobLatest = await this.getJob(jobId);
+          await this.updateJob(jobId, {
             status: 'failed',
             error: error.message,
             currentProcess: 'Background generation failed',
-            logs: [...this.getJob(jobId).logs, { 
+            logs: [...(jobLatest?.logs || []), { 
               message: `Background generation error: ${error.message}`, 
               type: 'error', 
               timestamp: new Date() 
@@ -335,11 +404,12 @@ Write the complete chapter now. Do not include chapter headers or numbering - ju
 
     } catch (error) {
       console.error(`Job ${jobId} failed:`, error);
-      this.updateJob(jobId, {
+      const jobLatest = await this.getJob(jobId);
+      await this.updateJob(jobId, {
         status: 'failed',
         error: error.message,
         currentProcess: 'Generation failed',
-        logs: [...this.getJob(jobId).logs, { 
+        logs: [...(jobLatest?.logs || []), { 
           message: `Generation failed: ${error.message}`, 
           type: 'error', 
           timestamp: new Date() 
@@ -352,8 +422,7 @@ Write the complete chapter now. Do not include chapter headers or numbering - ju
   // Generate chapters with timeout protection for Railway
   async generateChaptersWithTimeoutProtection(jobId, outline) {
     console.log(`🎬 Background generation function called for job ${jobId}`);
-    
-    const job = this.getJob(jobId);
+    const job = await this.getJob(jobId);
     if (!job) {
       console.error(`❌ Job ${jobId} not found in background generation`);
       return;
@@ -364,14 +433,12 @@ Write the complete chapter now. Do not include chapter headers or numbering - ju
     try {
       const totalChapters = outline.length;
       const chapters = [];
-      
       console.log(`📚 Starting generation of ${totalChapters} chapters for job ${jobId}`);
-      
       // Update job status to indicate background processing started
-      this.updateJob(jobId, {
+      await this.updateJob(jobId, {
         status: 'generating',
         currentProcess: `Background generation started - ${totalChapters} chapters to generate`,
-        logs: [...job.logs, { 
+        logs: [...(job.logs || []), { 
           message: `Background generation started - ${totalChapters} chapters planned`, 
           type: 'info', 
           timestamp: new Date() 
@@ -382,14 +449,13 @@ Write the complete chapter now. Do not include chapter headers or numbering - ju
       for (let i = 0; i < totalChapters; i++) {
         const chapterNumber = i + 1;
         const chapterOutline = outline[i];
-
         console.log(`📝 Starting Chapter ${chapterNumber}: ${chapterOutline.title}`);
-
         // Update progress frequently to show we're alive
-        this.updateJob(jobId, {
+        const jobCurrent = await this.getJob(jobId);
+        await this.updateJob(jobId, {
           currentChapter: chapterNumber,
           currentProcess: `Writing Chapter ${chapterNumber}: ${chapterOutline.title}`,
-          logs: [...this.getJob(jobId).logs, { 
+          logs: [...(jobCurrent?.logs || []), { 
             message: `Starting Chapter ${chapterNumber}: ${chapterOutline.title}`, 
             type: 'info', 
             timestamp: new Date() 
@@ -402,14 +468,13 @@ Write the complete chapter now. Do not include chapter headers or numbering - ju
             chapterOutline,
             storyData: job.storyData,
             previousChapters: chapters,
-            onProgress: (message) => {
-              this.updateJob(jobId, { currentProcess: message });
+            onProgress: async (message) => {
+              await this.updateJob(jobId, { currentProcess: message });
               console.log(`📈 Progress: ${message}`);
             }
           });
 
           console.log(`✅ Chapter ${chapterNumber} generated: ${chapter.wordCount} words`);
-
           // Check if chapter meets word count requirements and retry if needed
           const targetWordCount = job.storyData.targetChapterLength || 1500;
           const minWordCount = targetWordCount * 0.75; // 75% of target minimum
@@ -419,10 +484,10 @@ Write the complete chapter now. Do not include chapter headers or numbering - ju
           while (chapter.wordCount < minWordCount && retryCount < maxRetries) {
             retryCount++;
             console.log(`⚠️ Chapter ${chapterNumber} word count too low: ${chapter.wordCount} words (target: ${targetWordCount}). Retry ${retryCount}/${maxRetries}`);
-            
-            this.updateJob(jobId, {
+            const jobRetry = await this.getJob(jobId);
+            await this.updateJob(jobId, {
               currentProcess: `Chapter ${chapterNumber} too short (${chapter.wordCount} words), regenerating to meet ${targetWordCount} word target...`,
-              logs: [...this.getJob(jobId).logs, { 
+              logs: [...(jobRetry?.logs || []), { 
                 message: `Chapter ${chapterNumber} retry ${retryCount}/${maxRetries} - ${chapter.wordCount} words too short`, 
                 type: 'warning', 
                 timestamp: new Date() 
@@ -437,8 +502,8 @@ Write the complete chapter now. Do not include chapter headers or numbering - ju
               isRetry: true,
               previousWordCount: chapter.wordCount,
               targetWordCount: targetWordCount,
-              onProgress: (message) => {
-                this.updateJob(jobId, { currentProcess: message });
+              onProgress: async (message) => {
+                await this.updateJob(jobId, { currentProcess: message });
                 console.log(`🔄 Retry Progress: ${message}`);
               }
             });
@@ -446,8 +511,9 @@ Write the complete chapter now. Do not include chapter headers or numbering - ju
 
           if (chapter.wordCount < minWordCount) {
             console.log(`⚠️ Chapter ${chapterNumber} still under target after ${maxRetries} retries: ${chapter.wordCount} words`);
-            this.updateJob(jobId, {
-              logs: [...this.getJob(jobId).logs, { 
+            const jobWarn = await this.getJob(jobId);
+            await this.updateJob(jobId, {
+              logs: [...(jobWarn?.logs || []), { 
                 message: `Chapter ${chapterNumber} completed at ${chapter.wordCount} words (below target but proceeding)`, 
                 type: 'warning', 
                 timestamp: new Date() 
@@ -455,8 +521,9 @@ Write the complete chapter now. Do not include chapter headers or numbering - ju
             });
           } else {
             console.log(`✅ Chapter ${chapterNumber} completed successfully: ${chapter.wordCount} words`);
-            this.updateJob(jobId, {
-              logs: [...this.getJob(jobId).logs, { 
+            const jobSuccess = await this.getJob(jobId);
+            await this.updateJob(jobId, {
+              logs: [...(jobSuccess?.logs || []), { 
                 message: `Chapter ${chapterNumber} completed successfully (${chapter.wordCount} words)`, 
                 type: 'success', 
                 timestamp: new Date() 
@@ -467,11 +534,12 @@ Write the complete chapter now. Do not include chapter headers or numbering - ju
           chapters.push(chapter);
 
           const progress = (chapterNumber / totalChapters) * 100;
-          this.updateJob(jobId, {
+          const jobProg = await this.getJob(jobId);
+          await this.updateJob(jobId, {
             progress,
             chaptersCompleted: chapterNumber,
             currentProcess: `Chapter ${chapterNumber} completed (${chapter.wordCount} words) - ${Math.round(progress)}% done`,
-            logs: [...this.getJob(jobId).logs, { 
+            logs: [...(jobProg?.logs || []), { 
               message: `Chapter ${chapterNumber} completed (${chapter.wordCount} words) - ${Math.round(progress)}% done`, 
               type: 'success', 
               timestamp: new Date() 
@@ -484,8 +552,9 @@ Write the complete chapter now. Do not include chapter headers or numbering - ju
           
         } catch (chapterError) {
           console.error(`❌ Error generating chapter ${chapterNumber}:`, chapterError);
-          this.updateJob(jobId, {
-            logs: [...this.getJob(jobId).logs, { 
+          const jobErr = await this.getJob(jobId);
+          await this.updateJob(jobId, {
+            logs: [...(jobErr?.logs || []), { 
               message: `Chapter ${chapterNumber} generation failed: ${chapterError.message}`, 
               type: 'error', 
               timestamp: new Date() 
@@ -504,13 +573,13 @@ Write the complete chapter now. Do not include chapter headers or numbering - ju
         completedAt: new Date().toISOString(),
         outline: outline
       };
-
-      this.updateJob(jobId, {
+      const jobFinal = await this.getJob(jobId);
+      await this.updateJob(jobId, {
         status: 'completed',
         progress: 100,
         result: result,
         currentProcess: 'Generation complete!',
-        logs: [...this.getJob(jobId).logs, { 
+        logs: [...(jobFinal?.logs || []), { 
           message: `Novel generation completed! ${chapters.length} chapters, ${totalWords.toLocaleString()} words`, 
           type: 'success', 
           timestamp: new Date() 
@@ -522,11 +591,12 @@ Write the complete chapter now. Do not include chapter headers or numbering - ju
       
     } catch (error) {
       console.error(`❌ Background generation failed for job ${jobId}:`, error);
-      this.updateJob(jobId, {
+      const jobErr = await this.getJob(jobId);
+      await this.updateJob(jobId, {
         status: 'failed',
         error: error.message,
         currentProcess: 'Generation failed',
-        logs: [...this.getJob(jobId).logs, { 
+        logs: [...(jobErr?.logs || []), { 
           message: `Background generation failed: ${error.message}`, 
           type: 'error', 
           timestamp: new Date() 
