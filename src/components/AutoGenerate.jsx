@@ -1,4 +1,4 @@
-simport React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import LoadingSpinner from './LoadingSpinner';
 import apiService from '../services/apiService.js';
 import './AutoGenerate.css';
