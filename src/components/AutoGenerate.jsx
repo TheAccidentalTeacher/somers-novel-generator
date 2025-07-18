@@ -371,9 +371,11 @@ const AutoGenerate = ({ conflictData, apiConfig, onSuccess, onError, onNotificat
 
   // Calculate chapters when word count or target length changes
   useEffect(() => {
-    if (storySetup.wordCount && storySetup.targetChapterLength) {
+    if (storySetup.wordCount && storySetup.targetChapterLength && storySetup.wordCount > 0 && storySetup.targetChapterLength > 0) {
       const calculated = Math.round(storySetup.wordCount / storySetup.targetChapterLength);
-      setCalculatedChapters(calculated);
+      setCalculatedChapters(Math.max(1, calculated)); // Ensure at least 1 chapter
+    } else {
+      setCalculatedChapters(1); // Default to 1 chapter if calculation fails
     }
   }, [storySetup.wordCount, storySetup.targetChapterLength]);
 
@@ -1110,10 +1112,10 @@ const AutoGenerate = ({ conflictData, apiConfig, onSuccess, onError, onNotificat
                         <strong>Estimated Chapters:</strong> {calculatedChapters}
                       </div>
                       <div className="stat">
-                        <strong>Average Chapter Length:</strong> {Math.round(storySetup.wordCount / calculatedChapters)} words
+                        <strong>Average Chapter Length:</strong> {calculatedChapters > 0 ? Math.round(storySetup.wordCount / calculatedChapters) : storySetup.targetChapterLength || 2000} words
                       </div>
                       <div className="stat">
-                        <strong>Chapter Range:</strong> {storySetup.targetChapterLength - storySetup.chapterVariance} - {storySetup.targetChapterLength + storySetup.chapterVariance} words
+                        <strong>Chapter Range:</strong> {(storySetup.targetChapterLength || 2000) - (storySetup.chapterVariance || 500)} - {(storySetup.targetChapterLength || 2000) + (storySetup.chapterVariance || 500)} words
                       </div>
                     </div>
                   </div>
