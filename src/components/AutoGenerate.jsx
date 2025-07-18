@@ -385,26 +385,15 @@ const AutoGenerate = ({ conflictData, apiConfig, onSuccess, onError, onNotificat
   };
 
   const startGeneration = async () => {
-    console.log(`🚀 FRONTEND DEBUG: startGeneration called! Phase: ${generationPhase}`);
-    console.log(`🚀 Story setup:`, storySetup);
-    console.log(`🚀 Conflict data:`, conflictData);
-    console.log(`🚀 Outline length:`, outline.length);
-    
-    // EMERGENCY DEBUG: Test if function is actually being called
-    alert('GENERATION BUTTON CLICKED! Check console for details.');
-    console.log('🔥 ALERT SHOWN - Function is definitely being called');
-    
-    // Add more debugging info
-    console.log(`🔍 Current generation phase: ${generationPhase}`);
-    console.log(`🔍 Story setup validation:`);
-    console.log(`  - Title: "${storySetup.title}" (length: ${storySetup.title?.length || 0})`);
-    console.log(`  - Synopsis: "${storySetup.synopsis}" (length: ${storySetup.synopsis?.length || 0})`);
-    console.log(`  - Outline: ${outline.length} chapters`);
-    console.log(`🔍 Validation check will be: title=${!!storySetup.title}, synopsis=${!!storySetup.synopsis}, outline=${!!outline.length}`);
+    console.log('🎯 DEBUG: startGeneration called');
+    console.log('🎯 DEBUG: generationPhase:', generationPhase);
+    console.log('🎯 DEBUG: conflictData:', conflictData);
+    console.log('🎯 DEBUG: storySetup:', storySetup);
+    console.log('🎯 DEBUG: outline length:', outline?.length);
     
     // If we're in setup phase, start planning
     if (generationPhase === 'setup') {
-      console.log(`🚀 FRONTEND DEBUG: Moving from setup to planning phase`);
+      console.log('🎯 DEBUG: Switching to planning phase');
       setGenerationPhase('planning');
       await createOutline();
       return;
@@ -429,17 +418,22 @@ const AutoGenerate = ({ conflictData, apiConfig, onSuccess, onError, onNotificat
       }
     };
 
+    console.log('🎯 DEBUG: Prepared storyData:', storyData);
+    console.log('🎯 DEBUG: Validation checks:');
+    console.log('  - title:', !!storyData.title);
+    console.log('  - synopsis:', !!storyData.synopsis);
+    console.log('  - outline length:', outline?.length || 0);
+
     // Validate required fields
     if (!storyData.title || !storyData.synopsis || !outline.length) {
+      console.log('❌ DEBUG: Validation failed - missing required fields');
       onError(new Error('Please complete the planning phase first'));
       return;
     }
 
+    console.log('✅ DEBUG: Validation passed, starting API call...');
+
     try {
-      console.log(`🚀 FRONTEND DEBUG: Starting generation with mode: ${generationMode}`);
-      console.log(`🚀 Story data:`, storyData);
-      console.log(`🚀 Request preferences:`, preferences);
-      
       setIsGenerating(true);
       setError(null);
       setResult(null);
@@ -460,12 +454,9 @@ const AutoGenerate = ({ conflictData, apiConfig, onSuccess, onError, onNotificat
         timestamp: new Date().toISOString()
       };
 
-      console.log(`🚀 FRONTEND DEBUG: Request data prepared:`, requestData);
-
       // Choose endpoint and make request based on generation mode
       let data;
       if (generationMode === 'stream') {
-        console.log(`🚀 Using streaming mode - making direct fetch call`);
         // For streaming, we'll still need to handle this differently
         const response = await fetch(`${apiConfig.baseUrl}/advancedStreamGeneration`, {
           method: 'POST',
@@ -483,12 +474,9 @@ const AutoGenerate = ({ conflictData, apiConfig, onSuccess, onError, onNotificat
 
         data = await response.json();
       } else {
-        console.log(`🚀 Using batch mode - calling API service`);
         // Use the API service for non-streaming requests
         data = await apiService.advancedGeneration(requestData);
       }
-      
-      console.log(`🚀 FRONTEND DEBUG: Received generation response:`, data);
       
       if (!data.success) {
         throw new Error(data.error || 'Failed to start generation');
@@ -496,13 +484,11 @@ const AutoGenerate = ({ conflictData, apiConfig, onSuccess, onError, onNotificat
 
       if (generationMode === 'stream') {
         // Handle streaming mode
-        console.log(`🚀 Starting streaming with ID: ${data.streamId}`);
         setJobId(data.streamId);
         addLog(`Advanced streaming generation started with ID: ${data.streamId}`, 'success');
         startAdvancedStreaming(data.streamId);
       } else {
         // Handle batch mode
-        console.log(`🚀 FRONTEND DEBUG: Starting polling for job ID: ${data.jobId}`);
         setJobId(data.jobId);
         addLog(`Advanced generation job started with ID: ${data.jobId}`, 'success');
         startAdvancedPolling(data.jobId);
@@ -810,48 +796,27 @@ const AutoGenerate = ({ conflictData, apiConfig, onSuccess, onError, onNotificat
   };
 
   const startAdvancedPolling = (jobId) => {
-    console.log(`🔔 FRONTEND DEBUG: Starting advanced polling for job ${jobId}`);
-    console.log(`🔔 API Service base URL: ${apiService.getConfig().baseUrl}`);
-    
     intervalRef.current = setInterval(async () => {
-      console.log(`🔔 FRONTEND DEBUG: Polling job status for ${jobId}...`);
-      
       try {
         // Use the API service instead of raw fetch
-        console.log(`🔔 Making API call to: /advancedGeneration/${jobId}`);
         const data = await apiService.getGenerationStatus(jobId);
-        console.log(`🔔 FRONTEND DEBUG: Received response:`, data);
         
         const jobStatus = data.job;
-        console.log(`🔔 Job status details:`, {
-          status: jobStatus?.status,
-          progress: jobStatus?.progress,
-          currentProcess: jobStatus?.currentProcess,
-          chaptersCompleted: jobStatus?.chaptersCompleted,
-          logsCount: jobStatus?.logs?.length || 0
-        });
-        
         setStatus(jobStatus);
         setProgress(jobStatus.progress || 0);
         
         if (jobStatus.currentProcess) {
-          console.log(`🔔 Updating process: ${jobStatus.currentProcess}`);
           setCurrentProcess(jobStatus.currentProcess);
         }
 
         // Update logs with new entries
         if (jobStatus.logs && jobStatus.logs.length > logs.length) {
           const newLogs = jobStatus.logs.slice(logs.length);
-          console.log(`🔔 Adding ${newLogs.length} new log entries`);
-          newLogs.forEach(log => {
-            console.log(`🔔 New log: [${log.type}] ${log.message}`);
-            addLog(log.message, log.type);
-          });
+          newLogs.forEach(log => addLog(log.message, log.type));
         }
 
         // Handle job completion
         if (jobStatus.status === 'completed') {
-          console.log(`🎉 FRONTEND DEBUG: Job ${jobId} completed!`);
           clearInterval(intervalRef.current);
           setIsGenerating(false);
           setCurrentProcess('');
@@ -860,7 +825,6 @@ const AutoGenerate = ({ conflictData, apiConfig, onSuccess, onError, onNotificat
           onSuccess(jobStatus.result);
           onNotification('Your novel is ready!', 'success');
         } else if (jobStatus.status === 'failed') {
-          console.log(`❌ FRONTEND DEBUG: Job ${jobId} failed!`);
           clearInterval(intervalRef.current);
           setIsGenerating(false);
           setCurrentProcess('');
@@ -868,22 +832,13 @@ const AutoGenerate = ({ conflictData, apiConfig, onSuccess, onError, onNotificat
           setError(new Error(errorMsg));
           addLog(`Generation failed: ${errorMsg}`, 'error');
           onError(new Error(errorMsg));
-        } else {
-          console.log(`🔄 FRONTEND DEBUG: Job ${jobId} still running - status: ${jobStatus.status}`);
         }
 
       } catch (error) {
-        console.error('🚨 FRONTEND DEBUG: Advanced polling error:', error);
-        console.error('🚨 Error details:', {
-          message: error.message,
-          status: error.status,
-          stack: error.stack
-        });
+        console.error('Advanced polling error:', error);
         addLog(`Polling error: ${error.message}`, 'error');
       }
     }, 3000); // Poll every 3 seconds for advanced generation
-    
-    console.log(`🔔 FRONTEND DEBUG: Polling interval started with ID:`, intervalRef.current);
   };
 
   const cancelGeneration = async () => {
