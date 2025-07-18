@@ -46,7 +46,7 @@ ${genreInstructions}
 
 REQUIREMENTS:
 1. Create exactly ${chapters} chapter outlines
-2. Each chapter should be substantial enough for ${targetChapterLength} words
+2. Each chapter outline should describe events and scenes substantial enough to fill ${targetChapterLength} words when written as full prose
 3. Ensure proper story pacing and structure for ${fictionLength}
 4. Include character development arcs
 5. Build tension and conflicts appropriately
@@ -58,7 +58,7 @@ Return a JSON array with this exact structure:
 [
   {
     "title": "Chapter Title",
-    "summary": "Detailed chapter summary including key events, character developments, conflicts, and emotional beats. Should be 2-3 sentences explaining what happens and why it matters to the overall story."
+    "summary": "Brief but detailed chapter summary (2-3 sentences) describing the key events, character developments, conflicts, and emotional beats. Focus on WHAT HAPPENS in the chapter, not how long it should be."
   }
 ]
 
@@ -171,22 +171,25 @@ ${genreInstructions}
 
 CHAPTER REQUIREMENTS:
 - Title: ${chapterOutline.title}
-- Planned Content: ${chapterOutline.summary}
+- Story Content to Include: ${chapterOutline.summary}
 - CRITICAL WORD COUNT TARGET: ${actualTargetLength} words (minimum: ${minWords}, maximum: ${maxWords})
 - This is Chapter ${chapterNumber} of the novel${retryInstructions}
+
+IMPORTANT: The "Story Content to Include" above is just a brief outline. You must expand it into a full ${actualTargetLength}-word chapter with rich prose, detailed scenes, dialogue, and character development.
 
 ${previousContext ? `STORY CONTEXT (Previous Chapters):\n${previousContext}\n\n` : ''}
 
 WRITING INSTRUCTIONS:
-1. Write a complete, engaging chapter that fits the outline
-2. Maintain consistency with previous chapters and overall story
-3. Show don't tell - use vivid scenes and dialogue
-4. Follow ${genre} genre conventions
-5. Ensure proper pacing and emotional beats
-6. CRITICAL: Target exactly ${actualTargetLength} words - this is very important!
-7. End with appropriate tension/resolution for chapter position
-8. Use rich, immersive prose appropriate for the genre
-9. If you're under the word count, expand with:
+1. Take the brief story outline and expand it into a full-length chapter of ${actualTargetLength} words
+2. Write a complete, engaging chapter that covers all events mentioned in the outline
+3. Maintain consistency with previous chapters and overall story
+4. Show don't tell - use vivid scenes and dialogue
+5. Follow ${genre} genre conventions
+6. Ensure proper pacing and emotional beats
+7. CRITICAL: Target exactly ${actualTargetLength} words - this is very important!
+8. End with appropriate tension/resolution for chapter position
+9. Use rich, immersive prose appropriate for the genre
+10. If you're under the word count, expand with:
    - More detailed scene descriptions
    - Additional dialogue and character interactions
    - Internal character thoughts and emotions
