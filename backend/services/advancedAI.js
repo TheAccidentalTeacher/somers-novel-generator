@@ -349,6 +349,28 @@ Write the complete chapter now. Do not include chapter headers or numbering - ju
     }
   }
 
+  // Debug method to check job status
+  async debugJobStatus(jobId) {
+    console.log(`🔍 Debug: Checking job ${jobId}`);
+    console.log(`🔍 MongoDB ready: ${this.mongoReady}`);
+    console.log(`🔍 In-memory jobs count: ${this.jobs.size}`);
+    
+    try {
+      const job = await this.getJob(jobId);
+      if (job) {
+        console.log(`🔍 Job found: ${job.status}, process: ${job.currentProcess}`);
+        console.log(`🔍 Progress: ${job.progress}%, chapters: ${job.chaptersCompleted}/${job.storyData?.chapters || 'unknown'}`);
+        console.log(`🔍 Logs count: ${job.logs?.length || 0}`);
+      } else {
+        console.log(`🔍 Job not found in storage`);
+      }
+      return job;
+    } catch (error) {
+      console.error(`🔍 Error checking job:`, error);
+      return null;
+    }
+  }
+
   // Process a generation job
   async processAdvancedGeneration(jobId) {
     const job = await this.getJob(jobId);
@@ -382,21 +404,36 @@ Write the complete chapter now. Do not include chapter headers or numbering - ju
       setTimeout(async () => {
         console.log(`🎬 setTimeout callback executed for job ${jobId}`);
         try {
+          // Double-check job exists before starting generation
+          const jobCheck = await this.getJob(jobId);
+          if (!jobCheck) {
+            console.error(`❌ Job ${jobId} not found in setTimeout callback`);
+            return;
+          }
+          
           console.log(`⚡ Background generation starting for job ${jobId}...`);
+          console.log(`📝 Job status: ${jobCheck.status}, outline length: ${outline.length}`);
+          
           await this.generateChaptersWithTimeoutProtection(jobId, outline);
         } catch (error) {
           console.error(`❌ Background generation error for job ${jobId}:`, error);
-          const jobLatest = await this.getJob(jobId);
-          await this.updateJob(jobId, {
-            status: 'failed',
-            error: error.message,
-            currentProcess: 'Background generation failed',
-            logs: [...(jobLatest?.logs || []), { 
-              message: `Background generation error: ${error.message}`, 
-              type: 'error', 
-              timestamp: new Date() 
-            }]
-          });
+          console.error(`❌ Error stack:`, error.stack);
+          
+          try {
+            const jobLatest = await this.getJob(jobId);
+            await this.updateJob(jobId, {
+              status: 'failed',
+              error: error.message,
+              currentProcess: 'Background generation failed',
+              logs: [...(jobLatest?.logs || []), { 
+                message: `Background generation error: ${error.message}`, 
+                type: 'error', 
+                timestamp: new Date() 
+              }]
+            });
+          } catch (updateError) {
+            console.error(`❌ Failed to update job with error status:`, updateError);
+          }
         }
       }, 100); // Start after 100ms to ensure response is sent
       
@@ -429,13 +466,22 @@ Write the complete chapter now. Do not include chapter headers or numbering - ju
   // Generate chapters with timeout protection for Railway
   async generateChaptersWithTimeoutProtection(jobId, outline) {
     console.log(`🎬 Background generation function called for job ${jobId}`);
+    console.log(`📋 Outline validation: ${outline ? `${outline.length} chapters` : 'null/undefined'}`);
+    
+    // Validate outline before proceeding
+    if (!outline || !Array.isArray(outline) || outline.length === 0) {
+      console.error(`❌ Invalid outline for job ${jobId}: ${outline}`);
+      throw new Error('Invalid or empty outline provided');
+    }
+    
     const job = await this.getJob(jobId);
     if (!job) {
       console.error(`❌ Job ${jobId} not found in background generation`);
-      return;
+      throw new Error(`Job ${jobId} not found`);
     }
 
     console.log(`🔍 Job found: ${job.id}, status: ${job.status}`);
+    console.log(`📊 Job data validation: storyData=${!!job.storyData}, title=${job.storyData?.title}`);
 
     try {
       const totalChapters = outline.length;
