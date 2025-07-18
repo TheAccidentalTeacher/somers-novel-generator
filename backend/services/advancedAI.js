@@ -1,5 +1,6 @@
 
 import OpenAI from 'openai';
+import mongoClient from '../mongoClient.js';
 
 class AdvancedAIService {
   constructor() {
@@ -9,16 +10,31 @@ class AdvancedAIService {
       console.warn('⚠️  OpenAI API key not configured. Advanced AI services will not be available.');
       this.openai = null;
     } else {
-      console.log('✅ Advanced AI Service initialized successfully - v3.0 (2025-07-17)');
+      console.log('✅ Advanced AI Service initialized successfully - v4.0 (2025-07-17)');
       this.openai = new OpenAI({
         apiKey: apiKey
       });
     }
     
-    // Use in-memory storage for jobs (simple and reliable)
-    this.jobs = new Map();
+    // Initialize both MongoDB and in-memory storage (fallback)
+    this.jobs = new Map(); // In-memory fallback
     this.streams = new Map();
-    console.log('📝 In-memory job storage initialized');
+    this.mongoReady = false;
+    
+    // Initialize MongoDB connection
+    this.initializeMongoDB();
+  }
+
+  async initializeMongoDB() {
+    try {
+      await mongoClient.connect();
+      this.mongoReady = true;
+      console.log('✅ MongoDB storage ready for novel generation jobs');
+    } catch (error) {
+      console.warn('⚠️ MongoDB connection failed, using in-memory storage:', error.message);
+      this.mongoReady = false;
+      console.log('📝 In-memory job storage initialized as fallback');
+    }
   }
 
   isConfigured() {
@@ -256,25 +272,76 @@ Write the complete chapter now. Do not include chapter headers or numbering - ju
       currentProcess: 'Initializing...'
     };
     
-    this.jobs.set(jobId, job);
-    console.log(`📝 Job ${jobId} created in memory`);
-    return jobId;
+    try {
+      if (this.mongoReady) {
+        await mongoClient.createJob(job);
+        console.log(`📝 Job ${jobId} stored in MongoDB`);
+      } else {
+        // Fallback to in-memory storage
+        this.jobs.set(jobId, job);
+        console.log(`📝 Job ${jobId} created in memory (MongoDB fallback)`);
+      }
+      return jobId;
+    } catch (error) {
+      console.error('Job creation error:', error);
+      // Always fallback to memory if MongoDB fails
+      this.jobs.set(jobId, job);
+      console.log(`📝 Job ${jobId} created in memory (MongoDB error fallback)`);
+      return jobId;
+    }
   }
 
   async getJob(jobId) {
-    return this.jobs.get(jobId) || null;
+    try {
+      if (this.mongoReady) {
+        return await mongoClient.getJob(jobId);
+      } else {
+        // Fallback to in-memory storage
+        return this.jobs.get(jobId) || null;
+      }
+    } catch (error) {
+      console.error('MongoDB getJob error:', error);
+      // Fallback to memory
+      return this.jobs.get(jobId) || null;
+    }
   }
 
   async updateJob(jobId, updates) {
-    const job = this.jobs.get(jobId);
-    if (job) {
-      Object.assign(job, updates);
-      this.jobs.set(jobId, job);
+    try {
+      if (this.mongoReady) {
+        await mongoClient.updateJob(jobId, updates);
+      } else {
+        // Fallback to in-memory storage
+        const job = this.jobs.get(jobId);
+        if (job) {
+          Object.assign(job, updates);
+          this.jobs.set(jobId, job);
+        }
+      }
+    } catch (error) {
+      console.error('MongoDB updateJob error:', error);
+      // Fallback to memory
+      const job = this.jobs.get(jobId);
+      if (job) {
+        Object.assign(job, updates);
+        this.jobs.set(jobId, job);
+      }
     }
   }
 
   async deleteJob(jobId) {
-    this.jobs.delete(jobId);
+    try {
+      if (this.mongoReady) {
+        await mongoClient.deleteJob(jobId);
+      } else {
+        // Fallback to in-memory storage
+        this.jobs.delete(jobId);
+      }
+    } catch (error) {
+      console.error('MongoDB deleteJob error:', error);
+      // Fallback to memory
+      this.jobs.delete(jobId);
+    }
   }
 
   // Process a generation job
