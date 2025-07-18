@@ -392,6 +392,15 @@ const AutoGenerate = ({ conflictData, apiConfig, onSuccess, onError, onNotificat
     
     // EMERGENCY DEBUG: Test if function is actually being called
     alert('GENERATION BUTTON CLICKED! Check console for details.');
+    console.log('🔥 ALERT SHOWN - Function is definitely being called');
+    
+    // Add more debugging info
+    console.log(`🔍 Current generation phase: ${generationPhase}`);
+    console.log(`🔍 Story setup validation:`);
+    console.log(`  - Title: "${storySetup.title}" (length: ${storySetup.title?.length || 0})`);
+    console.log(`  - Synopsis: "${storySetup.synopsis}" (length: ${storySetup.synopsis?.length || 0})`);
+    console.log(`  - Outline: ${outline.length} chapters`);
+    console.log(`🔍 Validation check will be: title=${!!storySetup.title}, synopsis=${!!storySetup.synopsis}, outline=${!!outline.length}`);
     
     // If we're in setup phase, start planning
     if (generationPhase === 'setup') {
