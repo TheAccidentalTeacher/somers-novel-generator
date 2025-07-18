@@ -1,6 +1,5 @@
 
 import OpenAI from 'openai';
-import redisClient from '../redisClient.js';
 
 class AdvancedAIService {
   constructor() {
@@ -10,48 +9,16 @@ class AdvancedAIService {
       console.warn('⚠️  OpenAI API key not configured. Advanced AI services will not be available.');
       this.openai = null;
     } else {
-      console.log('✅ Advanced AI Service initialized successfully - v2.0 (2025-07-14)');
+      console.log('✅ Advanced AI Service initialized successfully - v3.0 (2025-07-17)');
       this.openai = new OpenAI({
         apiKey: apiKey
       });
     }
     
-    // Job storage now uses Redis
+    // Use in-memory storage for jobs (simple and reliable)
+    this.jobs = new Map();
     this.streams = new Map();
-    this.redisReady = false;
-    
-    // Check if Redis is already connected, if not connect
-    this.initializeRedis();
-  }
-
-  async initializeRedis() {
-    try {
-      // Check if already connected
-      if (redisClient.isReady) {
-        this.redisReady = true;
-        console.log('✅ Redis already connected');
-        return;
-      }
-
-      console.log('🔄 Attempting Redis connection...');
-      // Try to connect with timeout
-      const connectPromise = redisClient.connect();
-      const timeoutPromise = new Promise((_, reject) => 
-        setTimeout(() => reject(new Error('Redis connection timeout')), 10000)
-      );
-      
-      await Promise.race([connectPromise, timeoutPromise]);
-      this.redisReady = true;
-      console.log('✅ Redis client connected successfully');
-    } catch (err) {
-      console.warn('⚠️ Redis connection failed, falling back to in-memory storage:', err.code || err.message);
-      this.redisReady = false;
-      // Initialize fallback in-memory storage
-      if (!this.fallbackJobs) {
-        this.fallbackJobs = new Map();
-        console.log('📝 In-memory job storage initialized as fallback');
-      }
-    }
+    console.log('📝 In-memory job storage initialized');
   }
 
   isConfigured() {
@@ -274,10 +241,6 @@ Write the complete chapter now. Do not include chapter headers or numbering - ju
 
   // Create and manage generation jobs
   async createJob(storyData, preferences) {
-    if (!this.redisReady) {
-      await this.initializeRedis();
-    }
-    
     const jobId = `job_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
     const job = {
       id: jobId,
@@ -293,84 +256,25 @@ Write the complete chapter now. Do not include chapter headers or numbering - ju
       currentProcess: 'Initializing...'
     };
     
-    try {
-      if (this.redisReady) {
-        await redisClient.set(`job:${jobId}`, JSON.stringify(job));
-        console.log(`📝 Job ${jobId} created in Redis`);
-      } else {
-        // Fallback to in-memory storage
-        if (!this.fallbackJobs) this.fallbackJobs = new Map();
-        this.fallbackJobs.set(jobId, job);
-        console.log(`📝 Job ${jobId} created in memory (Redis fallback)`);
-      }
-      return jobId;
-    } catch (error) {
-      console.error('Job creation error:', error);
-      // Always fallback to memory if Redis fails
-      if (!this.fallbackJobs) this.fallbackJobs = new Map();
-      this.fallbackJobs.set(jobId, job);
-      console.log(`📝 Job ${jobId} created in memory (Redis error fallback)`);
-      return jobId;
-    }
+    this.jobs.set(jobId, job);
+    console.log(`📝 Job ${jobId} created in memory`);
+    return jobId;
   }
 
   async getJob(jobId) {
-    try {
-      if (this.redisReady) {
-        const data = await redisClient.get(`job:${jobId}`);
-        return data ? JSON.parse(data) : null;
-      } else {
-        // Fallback to in-memory storage
-        return this.fallbackJobs?.get(jobId) || null;
-      }
-    } catch (error) {
-      console.error('Redis getJob error:', error);
-      // Fallback to memory
-      return this.fallbackJobs?.get(jobId) || null;
-    }
+    return this.jobs.get(jobId) || null;
   }
 
   async updateJob(jobId, updates) {
-    try {
-      if (this.redisReady) {
-        const data = await redisClient.get(`job:${jobId}`);
-        if (data) {
-          const job = JSON.parse(data);
-          Object.assign(job, updates);
-          await redisClient.set(`job:${jobId}`, JSON.stringify(job));
-        }
-      } else {
-        // Fallback to in-memory storage
-        if (this.fallbackJobs?.has(jobId)) {
-          const job = this.fallbackJobs.get(jobId);
-          Object.assign(job, updates);
-          this.fallbackJobs.set(jobId, job);
-        }
-      }
-    } catch (error) {
-      console.error('Redis updateJob error:', error);
-      // Fallback to memory
-      if (this.fallbackJobs?.has(jobId)) {
-        const job = this.fallbackJobs.get(jobId);
-        Object.assign(job, updates);
-        this.fallbackJobs.set(jobId, job);
-      }
+    const job = this.jobs.get(jobId);
+    if (job) {
+      Object.assign(job, updates);
+      this.jobs.set(jobId, job);
     }
   }
 
   async deleteJob(jobId) {
-    try {
-      if (this.redisReady) {
-        await redisClient.del(`job:${jobId}`);
-      } else {
-        // Fallback to in-memory storage
-        this.fallbackJobs?.delete(jobId);
-      }
-    } catch (error) {
-      console.error('Redis deleteJob error:', error);
-      // Fallback to memory
-      this.fallbackJobs?.delete(jobId);
-    }
+    this.jobs.delete(jobId);
   }
 
   // Process a generation job
